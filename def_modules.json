@@ -1,0 +1,126 @@
+{
+    "enabled_modules": [
+          
+            "wiki",
+            "reply",
+            "googleimg",
+            "vkmusic",
+            "vkvideo",
+            "vkdocs",
+            "vkwall",
+            "blackjack",
+            "approve",
+            "hangman"
+    
+    ],
+    
+    "modules_settings": {
+        "wiki": {
+            "react_on": [       
+                "wiki:",
+                "вики:",
+                "скажи википедия,"
+            ]
+        },
+        "2chrnd": {},
+        "vkmusic": {},
+        "vkwall":{},
+        "vkdocs": {},
+        "hangman": {
+            "react_on": "повесьте нас"
+        },
+        "googleimg": {},
+        "blackjack": {
+            "react_on": "блекджек"
+        },
+        "approve": {
+	       "words" : {
+			 ".*тюлен.*" : ["Знаете, я вообще говоря это не одобряю =( ",
+                            "А вот это я одобряю! ",
+                            "Шли бы вы лесом, а? ",
+                            "Не доебывайтесь до меня!",
+                            "Cам тюлень",
+                            "Давай лучше сменим тему",
+                            "хуево, чо","чтобы вы ни делали - прекращайте",
+                            "ну и пусть",
+                            "охуели вообще",
+                            "cпасибо"]
+            }
+        },
+        "reply": {
+            "words": {
+                ".*похлопаем.*": {
+                    "answer": "( ´◔ ω◔`) ノシ",
+                    "regexp": true
+            },
+            "fail": {
+                "answer":"▄██████████████▄▐█▄▄▄▄█▌\n██████▌▄▌▄▐▐▌███▌▀▀██▀▀\n████▄█▌▄▌▄▐▐▌▀███▄▄█▌\n▄▄▄▄▄██████████████▀",
+                "registry_independent":true
+            },
+
+            ".*300.*": {
+                "answer": "сколько сколько?",
+                "regexp": true
+            },
+    		
+            ".*СНОУ В КОРОЛИ.*": {
+                        "answer": "чтобы он сосал хуи!",
+                        "regexp": true
+                    },
+
+    		".*сноу(?!.*в короли)": {
+                        "answer": "сноу - плоский персонаж, скучный и неинтересный. ",
+                        "regexp": true
+                    },
+
+
+            "в смысле?": {
+                "answer": "хуисле",
+                "registry_independent": true
+            },
+            ".*доту.*": {
+                "answer": "лучше бы ты в пукан долбился, чем в дoту играл",
+                "regexp": true
+            },
+            ".*дота.*": {
+                "answer": "лучше бы ты в пукан долбился, чем в дoту играл",
+                "regexp": true
+            },
+            "да": {
+                "answer": "манда",
+                "registry_independent": true
+            },
+            "завали ебало": {
+                "answer": "прости пожулуйста",
+                "registry_independent": true
+            },
+    		"ты": {
+    		    "answer" : "Жопой нюхаешь цветы",
+                "registry_independent": true
+    		},
+
+            ".*тристо.*": {
+                "answer": "сколько сколько?",
+                "regexp": true
+            },
+            "в смысле": {
+                "answer": "хуисле",
+                "registry_independent": true
+            },
+            ".*триста.*": {
+                "answer": "сколько сколько?",
+                "regexp": true
+            },
+
+            "и я": {
+                "answer": "свинья?",
+                "regexp": false,
+                "registry_independent":true
+                }
+
+            }
+        },
+        
+        "vkvideo": {}
+    }
+}
