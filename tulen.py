@@ -32,7 +32,8 @@ def process(config):
 
 		upd = statistics.get(stat, 0)
 		upd += value;	
-		config["statistics"][stat] = upd
+		statistics[stat] = upd
+		config["statistics"] = statistics
 
 		with io.open("config.json", 'w', encoding='utf-8') as f:
 			f.write(unicode(json.dumps(config, ensure_ascii=False,indent=4, separators=(',', ': '))))

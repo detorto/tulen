@@ -25,7 +25,7 @@ class VkUser(object):
         session = vk.Session(access_token=self.config["access"]["value"])
         
         self.api = vk.API(session,  v='5.50', timeout = 10)
-        self.thred_pool = ThreadPool(8)
+        self.thread_pool = ThreadPool(8)
         self.mutex = multiprocessing.Lock()
 
     def load_modules(self):
@@ -85,6 +85,7 @@ class VkUser(object):
             self.thread_pool.map(thread_work, [(module, message, chatid, userid) for module in self.modules])
         
         if ids:
+            self.thread_pool.join()
             self.mark_messages(ids)
 
     def send_message(self, text="", chatid=None, userid=None, attachments=None):
@@ -93,7 +94,7 @@ class VkUser(object):
             attachments = {}
             
         op = self.api.messages.send
-        args = {"chat_id" :chatid, "user_id" : userid, "message" : text, "attachment" : attachments.get("message",None)}
+        args = {"chat_id" :chatid, "user_id" : userid, "message" : text, "attachment" : attachments}
 
         print "sending message from [{}]".format(self.user)
         print pretty_dump(args)
@@ -110,10 +111,10 @@ class VkUser(object):
 
         
         
-    def post(self, text, attachments):
+    def post(self, text, chatid, userid, attachments):
 
         oppost = self.api.wall.post
-        args = {"owner_id" :int(self.config["access"]["user_id"]), "message" : text, "attachments" : ",".join(attachments.get("wall",None))}
+        args = {"owner_id" :int(self.config["access"]["user_id"]), "message" : text, "attachments" : ",".join(attachments)}
         print pretty_dump(args)
             
         print "Posting on wall".format(self.user)
