@@ -59,6 +59,10 @@ class Processor:
 				attachments = self.user.upload_images_files(files)
 
 				self.user.send_message(text=p.summary, chatid= chatid, userid=userid, attachments = attachments)
+				
+				attachments = self.user.upload_images_files_wall(files)
+
+				self.user.post(text=p.summary, chatid= chatid, userid=userid, attachments = attachments)
 			
 
 

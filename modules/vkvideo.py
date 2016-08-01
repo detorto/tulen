@@ -27,5 +27,6 @@ class Processor:
 				return
 			
 			self.user.send_message(text="["+req+"]", chatid=chatid, userid=userid, attachments=attachment)
+			self.user.post(text="["+req+"]", chatid=chatid, userid=userid, attachments=attachment)
 
 

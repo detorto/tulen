@@ -104,13 +104,17 @@ class Processor:
 				self.user.send_message(text=u"Уупс, не нашлось ничего на \""+req+"\"", chatid = chatid, userid=userid)
 				return
 
-			attachments = self.user.upload_images_files([img,])
-			if not attachments:
+			msg_attachments = self.user.upload_images_files([img,])
+			if not msg_attachments:
 				self.user.send_message(text=u"Странные же вы, такую хуйню ищите", chatid=chatid, userid=userid)
 				return
-
-			self.user.send_message(text=u"["+req+"]", attachments = attachments, chatid = chatid, userid=userid)
-
+			self.user.send_message(text=u"["+req+"]", attachments = msg_attachments, chatid = chatid, userid=userid)
+			
+			wall_attachments = self.user.upload_images_files_wall([img,])
+			if not wall_attachments:
+				print "Error in wall attachments"
+				return
+			self.user.post(text=u"["+req+"]", attachments = wall_attachments, chatid = chatid, userid=userid)
 
 
 
