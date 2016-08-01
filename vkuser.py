@@ -207,7 +207,7 @@ class VkUser(object):
 
             r = "audio"+str(audio["owner_id"])+"_"+str(audio["id"])
             print "Returning ",r
-            return {"wall":[r],"message":[r]}
+            return [r,]
         except:
             print "Error in audio find:"
             print pretty_dump(resp)
@@ -221,7 +221,7 @@ class VkUser(object):
             video = resp["items"][0]
             self.update_stat("video_found", 1)
             r =  "video"+str(video["owner_id"])+"_"+str(video["id"])
-            return {"wall":[r], "message":[r]}
+            return [r,]
         except:
             print "Error in video find:"
             print pretty_dump(resp)
@@ -235,7 +235,7 @@ class VkUser(object):
                     doc = resp["items"][0]
                     self.update_stat("docs_found", 1)
                     r =  "doc"+str(doc["owner_id"])+"_"+str(doc["id"])
-                    return {"wall":[r], "message":[r]}
+                    return [r,]
             except:
                     print "Error in video find:"
                     print pretty_dump(resp)
@@ -249,7 +249,7 @@ class VkUser(object):
                     wall = resp["items"][0]
                     self.update_stat("walls_found", 1)
                     r =  "wall"+str(wall["owner_id"])+"_"+str(wall["id"])
-                    return {"wall":[r], "message":[r]}
+                    return [r,]
             except:
                     print "Error in video find:"
                     print pretty_dump(resp)
