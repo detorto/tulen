@@ -1,5 +1,6 @@
 import json
 import time
+import multiprocessing
 
 def load_json(filename):
 	try:
@@ -26,7 +27,7 @@ def rate_limited(max_per_second, mode='wait', delay_first_call=False):
 
     set delay_first_call to True to delay the first call as well
     """
-    lock = threading.Lock()
+    lock = multiprocessing.Lock()
     min_interval = 1.0 / float(max_per_second)
     def decorate(func):
         last_time_called = [0.0]
