@@ -82,7 +82,7 @@ class VkUser(object):
             finally:
                 self.update_stat("processed", 1)
 
-        self.thread_pool_modules.map(thread_work, [(module, message, chatid, userid) for module in self.modules])
+        self.thread_pool_modules.map_async(thread_work, [(module, message, chatid, userid) for module in self.modules])
 
     def process_messages(self, messages):
         ids = [msg["id"] for msg in messages]
@@ -91,7 +91,7 @@ class VkUser(object):
         unread_messages = [ msg for msg in messages if msg["read_state"] == 0]
         if len(unread_messages) > 0:
             print "Maping ",len(unread_messages), "messages"
-            self.thread_pool_msg.map(self.proc_msg_, unread_messages)
+            self.thread_pool_msg.map_async(self.proc_msg_, unread_messages)
 
     def send_message(self, text="", chatid=None, userid=None, attachments=None):
         
