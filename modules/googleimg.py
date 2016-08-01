@@ -41,7 +41,7 @@ def get_image(srch):
 
 	def get_soup(url):
 		page = requests.get(url, headers=headers).text
-		print page
+		#print page
 		return BeautifulSoup(page,"html.parser")
 	
 	query = urllib.urlencode(encoded_dict({"text":srch}))
