@@ -25,7 +25,8 @@ class VkUser(object):
         session = vk.Session(access_token=self.config["access"]["value"])
         
         self.api = vk.API(session,  v='5.50', timeout = 10)
-        self.thread_pool = ThreadPool(8)
+        self.thread_pool_modules = ThreadPool(4)
+        self.thread_pool_msg = ThreadPool(4)
         self.mutex = multiprocessing.Lock()
 
     def load_modules(self):
@@ -59,34 +60,38 @@ class VkUser(object):
         args = {"message_ids" : ",".join([str(x) for x in message_ids])}
         rated_operation( operation, args )
 
-    def process_messages(self, messages):
-        ids = []
-        for message in messages:
-            
-            if message["read_state"] != 0:
-                continue
-
-            ids.append(message["id"])
-            
-            chatid = message.get("chat_id",None)
-            userid = message.get("user_id", None)
-            
-            def thread_work(data):
-                try:
-                    data[0].process_message(message=data[1], chatid=data[2], userid=data[3])
-                except:
-                    print "Something wrong while processin user [{}]".format(self.user)
-                    exc_type, exc_value, exc_traceback = sys.exc_info()
-                    traceback.print_exception(exc_type, exc_value, exc_traceback)
-                    self.update_stat("errors", 1)
-                finally:
-                    self.update_stat("processed", 1)
-
-            self.thread_pool.map(thread_work, [(module, message, chatid, userid) for module in self.modules])
+    def proc_msg_(self,message):
         
-        if ids:
-            self.thread_pool.join()
-            self.mark_messages(ids)
+        if message["read_state"] != 0:
+            return
+    
+        chatid = message.get("chat_id",None)
+        userid = None
+
+        if not chatid:
+            userid = message.get("user_id", None)
+        
+        def thread_work(data):
+            try:
+                data[0].process_message(message=data[1], chatid=data[2], userid=data[3])
+            except:
+                print "Something wrong while processin user [{}]".format(self.user)
+                exc_type, exc_value, exc_traceback = sys.exc_info()
+                traceback.print_exception(exc_type, exc_value, exc_traceback)
+                self.update_stat("errors", 1)
+            finally:
+                self.update_stat("processed", 1)
+
+        self.thread_pool_modules.map(thread_work, [(module, message, chatid, userid) for module in self.modules])
+
+    def process_messages(self, messages):
+        ids = [msg["id"] for msg in messages]
+        self.mark_messages(ids)
+
+        unread_messages = [ msg for msg in messages if msg["read_state"] == 0]
+        if len(unread_messages) > 0:
+            print "Maping ",len(unread_messages), "messages"
+            self.thread_pool_msg.map(self.proc_msg_, unread_messages)
 
     def send_message(self, text="", chatid=None, userid=None, attachments=None):
         
