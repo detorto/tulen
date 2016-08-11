@@ -254,5 +254,14 @@ class VkUser(object):
                     print "Error in video find:"
                     print pretty_dump(resp)
                     return None
+    def get_news(self, count=10):
+            op = self.api.newsfeed.get
+            args = {"filters":"post", "count":count}
+            resp = rated_operation(op,args)
 
+            return resp["items"]
+    def like_post(self, post_id):
+            op = self.api.likes.add
+            args = {"type":"post", "item_id":post_id}
+            resp = rated_operation(op,args)
 
