@@ -4,21 +4,29 @@
 import time
 import re
 from apscheduler.schedulers.background import BackgroundScheduler
+import logging
+import sys
+log = logging.getLogger(__name__)
 
 class Processor:
 
 	def like_wall(self):
-		news = user.get_news()
+		print "Will like a wall!"
+
+		news = self.user.get_news()
 		for n in news:
 			likes = n.get("likes",None)
 			if likes and likes["user_likes"] == 0 and likes["can_like"] == 1:
-				user.like_post(n["post_id"])
+				print "LIKE", n["post_id"]
+				self.user.like_post(n["post_id"],n["source_id"])
+
 
 	def __init__(self, config, user):
 		self.config = config
 		self.user = user
 		self.shced  = BackgroundScheduler()
-		self.shced.add_job(like_wall, "interval", minutes=1);
+#		self.like_wall()
+		self.shced.add_job(self.like_wall, "interval", seconds=60);
 		self.shced.start()
 
 

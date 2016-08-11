@@ -20,12 +20,12 @@ class VkUser(object):
         self.config = config
         self.glb_update_stat = glb_update_stat
         
-        self.load_modules()
 
         session = vk.Session(access_token=self.config["access"]["value"])
         
         self.api = vk.API(session,  v='5.50', timeout = 10)
-        self.thread_pool_modules = ThreadPool(4)
+        self.load_modules()
+	self.thread_pool_modules = ThreadPool(4)
         self.thread_pool_msg = ThreadPool(4)
         self.mutex = multiprocessing.Lock()
 
@@ -37,7 +37,7 @@ class VkUser(object):
         for module in self.modconf["enabled_modules"]:
             package = __import__("modules"+"."+module)
             processor = getattr(package, module)
-            modprocessor = processor.Processor(self.modconf["modules_settings"][module], self)
+            modprocessor = processor.Processor(self.modconf["modules_settings"].get(module,{}), self)
             self.modules.append(modprocessor)
             print "Loaded module: [{}]".format("modules"+"."+module)
         self.prev_modules = self.modconf["enabled_modules"]
@@ -258,10 +258,10 @@ class VkUser(object):
             op = self.api.newsfeed.get
             args = {"filters":"post", "count":count}
             resp = rated_operation(op,args)
-
             return resp["items"]
-    def like_post(self, post_id):
+    
+    def like_post(self, post_id, owner_id):
             op = self.api.likes.add
-            args = {"type":"post", "item_id":post_id}
+            args = {"type":"post", "item_id":post_id, "owner_id":owner_id}
             resp = rated_operation(op,args)
 
