@@ -21,8 +21,7 @@ class Processor:
 				self.user.like_post(n["post_id"],n["source_id"])
 
 
-	def __init__(self, config, user):
-		self.config = config
+	def __init__(self , user):
 		self.user = user
 		self.shced  = BackgroundScheduler()
 #		self.like_wall()

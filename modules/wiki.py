@@ -7,7 +7,7 @@ import urllib
 import requests
 import pprint
 import json
-
+import yaml
 
 def get_wiki_page(req):
 		wikipedia.set_lang("ru")
@@ -34,12 +34,12 @@ def save_images(page):
 
 
 import time
-
+CONFIG_FILE = "conf.yaml"
 class Processor:
 	
-	def __init__(self, config, user):
-		self.config = config
-		self.user = user
+	def __init__(self, vkuser):
+		self.user = vkuser
+		self.config = yaml.load(open(vkuser.module_file("wiki", CONFIG_FILE)))
 
 	def process_message(self, message, chatid, userid):
 
@@ -47,7 +47,7 @@ class Processor:
 			message_body = message["body"].lower()
 
 			if word in message_body:
-				req =message_body[message_body.index(word)+len(word):]
+				req = message_body[message_body.index(word)+len(word):]
 				try:
 					p = get_wiki_page(req)
 				except:

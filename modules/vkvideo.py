@@ -8,8 +8,7 @@ import time
 
 class Processor:
 
-	def __init__(self, config, user):
-		self.config = config
+	def __init__(self, user):
 		self.user = user
 
 	def process_message(self, message, chatid, userid):

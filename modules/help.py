@@ -6,8 +6,7 @@ import re
 import random
 class Processor:
 
-	def __init__(self, config, user):
-		self.config = config
+	def __init__(self, user):
 		self.user = user
 	def isRequest(self,message):
 		if message == u"тюлень, что ты умеешь":

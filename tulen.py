@@ -16,75 +16,72 @@ import json
 import time
 
 from vkuser import VkUser
-from utils import *
 import sys
 import traceback
 import io
+from optparse import OptionParser
+import yaml
 
-#url for getting access_token
-#https://oauth.vk.com/authorize?client_id=4775188&display=page&redirect_uri=http://oauth.vk.com/blank&scope=audio,offline,friends,messages,photos,video&response_type=token&v=5.37
+def process(config, testmode):
+    
+    def update_stat(stat, value):
+        
+        stats_file_path = config.get("stats_file", "statistics.yaml");
+        
+        try:
+            f = yaml.load(open(stats_file_path))
+        except:
+            f = None
+        
+        
+        if f:
+            upd = f.get(stat, 0)
+            upd += value;   
+            f[stat] = upd
+        else:
+            f = {stat:1}
+        
+        with io.open(stats_file_path, 'w', encoding='utf-8') as fo:
+            fo.write(unicode(yaml.dump(f)))
+        
 
 
-def process(config):
-	
-	def update_stat(stat, value):
-		statistics = config.get("statistics",{})
 
-		upd = statistics.get(stat, 0)
-		upd += value;	
-		statistics[stat] = upd
-		config["statistics"] = statistics
+    print "Creating user api... "
+    vkuser = VkUser(config, update_stat, testmode)
 
-		with io.open("config.json", 'w', encoding='utf-8') as f:
-			f.write(unicode(json.dumps(config, ensure_ascii=False,indent=4, separators=(',', ': '))))
-
-	while True: 
-		try:
-			print "Loading modules configuration... "
-			modules = load_json("modules.json");
-		except:
-			print "Invalid modules config !"
-			time.sleep(10)
-			continue
-
-		try:
-			print "Creating user api... "
-			vkuser = VkUser(config, modules, update_stat)
-			break
-		except:
-			print "Bad thing happenes on userapi creation !"
-			
-			exc_type, exc_value, exc_traceback = sys.exc_info()
-			traceback.print_exception(exc_type, exc_value, exc_traceback)
-
-			time.sleep(10)
-		
-
-	print "Starting processing... "
-	while True:
-		try:
-			vkuser.process_all_messages()
-		except:
-			print "Something wrong while processin dialogs [{}]"
-			exc_type, exc_value, exc_traceback = sys.exc_info()
-			traceback.print_exception(exc_type, exc_value, exc_traceback)
+    print "Starting processing... "
+    while True:
+        try:
+            vkuser.process_all_messages()
+        except:
+            print "Something wrong while processin dialogs [{}]"
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            traceback.print_exception(exc_type, exc_value, exc_traceback)
+            if testmode:
+                raise
 
 
 def main():
-	print "*************Tulen vk.com bot****************"
+    parser = OptionParser()
+    parser.add_option("-c", "--config", dest="config",
+                        help="configuration file to use", default="access.yaml", metavar="FILE.yaml")
+    parser.add_option("-t", "--test", dest="testmode",
+                        help="test mode", action="store_true", default=False)
 
-	config = load_json("config.json");
 
-	print "Loaded configuration"
-	
-	print pretty_dump(config)
+    (options, args) = parser.parse_args()
+    print "*************Tulen vk.com bot****************"
 
-	if not config:
-		print "Invalid config.json file!"
-		exit(0)
+    config = yaml.load(open(options.config));
 
-	process(config)
-	
+    print "Loaded configuration"
+    
+    print yaml.dump(config)
+    if options.testmode:
+        print "TEST MODE"
+    process(config, options.testmode)
+    
 if __name__ == '__main__':
-	main()
+    main()
 

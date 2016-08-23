@@ -73,13 +73,16 @@ def shuffle_cards():
     return cc
 
 PATH = "./files/blackjack_{}.context"
+CONFIG_FILE = "conf.yaml"
+
+import yaml
 class Processor:
-        def __init__(self, config, user):
-                self.config = config
-                self.user = user
+        def __init__(self, vkuser):
+                self.config = yaml.load(open(vkuser.module_file("blackjack", CONFIG_FILE)))
+                self.user = vkuser
                 self.benderstack = []
                 self.userstack = []
-                self.game_context = load_json(PATH.format(self.user.user))
+                self.game_context = load_json(PATH.format(0))
                 if not self.game_context:
                         self.new_game_context()
                 else:
@@ -204,7 +207,7 @@ class Processor:
         def save_context(self):
                 #print "Saving context"
                 #print self.game_context
-                with io.open(PATH.format(self.user.user), 'w', encoding='utf-8') as f:
+                with io.open(PATH.format(0), 'w', encoding='utf-8') as f:
                         f.write(unicode(json.dumps(self.game_context, ensure_ascii=False,indent=4, separators=(',', ': '))))
 
         def process_bet_on_user(self,uid, bet):

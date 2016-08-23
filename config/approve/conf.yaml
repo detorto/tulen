@@ -1,0 +1,6 @@
+react_on: 
+        - .*тюлен.*
+
+dict: dict.txt
+
+

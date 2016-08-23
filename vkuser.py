@@ -1,5 +1,3 @@
-import json
-
 import vk
 import time
 import json
@@ -10,61 +8,86 @@ import sys
 import traceback
 from multiprocessing.pool import ThreadPool
 import multiprocessing
-
+import os
 class VkUser(object):
 
-    def __init__(self, config, modconf, glb_update_stat):
-        self.user = "tulen"
-        self.modules = []
-        self.modconf = modconf
+
+    def __init__(self, config, update_stat, testmode = False):
         self.config = config
-        self.glb_update_stat = glb_update_stat
-        
 
-        session = vk.Session(access_token=self.config["access"]["value"])
+        self.update_stat_ = update_stat
+
+        if testmode:
+            session = None
+            self.api = None
+        else:
+            session = vk.Session(access_token=self.config["access_token"]["value"])
+            self.api = vk.API(session,  v='5.50', timeout = 10)
         
-        self.api = vk.API(session,  v='5.50', timeout = 10)
-        self.load_modules()
-	self.thread_pool_modules = ThreadPool(4)
-        self.thread_pool_msg = ThreadPool(4)
+        modules_list_file = self.config.get("enabled_modules_list", None)
+
+        if not modules_list_file:
+            mods = self.config.get("enabled_modules", None)
+        else:
+            mods = [l.strip() for l in open(modules_list_file).readlines()]
+
+        if not mods:
+            raise RuntimeError("Can't find any module to load!")
+
+        self.load_modules(mods)
+
+        self.thread_pool_modules = ThreadPool(int(config.get("mod_threads", 4)))
+        self.thread_pool_msg = ThreadPool(int(config.get("msg_threads", 4)))
         self.mutex = multiprocessing.Lock()
+        self.testmode = testmode
 
-    def load_modules(self):
 
-        #load modules from self.config["enabled_moduled"]
-        #load modules settings (for this user)
+    def load_modules(self, mod_list):
+
         self.modules = []
-        for module in self.modconf["enabled_modules"]:
+
+        for module in mod_list:
             package = __import__("modules"+"."+module)
             processor = getattr(package, module)
-            modprocessor = processor.Processor(self.modconf["modules_settings"].get(module,{}), self)
+            modprocessor = processor.Processor(self)
             self.modules.append(modprocessor)
             print "Loaded module: [{}]".format("modules"+"."+module)
-        self.prev_modules = self.modconf["enabled_modules"]
-        self.prev_modules_settings = self.modconf["modules_settings"]
+
+    def module_file(self,  modname, filename):
+        return os.path.join(self.config.get("modules_config_dir","config"),modname, filename)
 
     def update_stat(self, stat, value):
         self.mutex.acquire()
-        self.glb_update_stat(stat, value)
+        self.update_stat_(stat, value)
         self.mutex.release()
 
+
     def process_all_messages(self):
+
+        if self.testmode:
+            msg = raw_input("msg>> ")
+            msg = msg.decode('utf-8')
+            self.process_messages( [{"read_state":0, "id":"0","body":msg,"chat_id":2}])
+            return 
+
         operation = self.api.messages.get
         args = {"count" : self.config["message_count"]}
         ret = rated_operation( operation, args )
         messages  = ret["items"]
         self.process_messages(messages)
 
+
     def mark_messages(self, message_ids):
+        if self.testmode:
+            return
+
         operation = self.api.messages.markAsRead
         args = {"message_ids" : ",".join([str(x) for x in message_ids])}
         rated_operation( operation, args )
 
+
     def proc_msg_(self,message):
         
-        if message["read_state"] != 0:
-            return
-    
         chatid = message.get("chat_id",None)
         userid = None
 
@@ -84,14 +107,16 @@ class VkUser(object):
 
         self.thread_pool_modules.map_async(thread_work, [(module, message, chatid, userid) for module in self.modules])
 
+
     def process_messages(self, messages):
         ids = [msg["id"] for msg in messages]
         self.mark_messages(ids)
 
         unread_messages = [ msg for msg in messages if msg["read_state"] == 0]
         if len(unread_messages) > 0:
-            print "Maping ",len(unread_messages), "messages"
+
             self.thread_pool_msg.map_async(self.proc_msg_, unread_messages)
+
 
     def send_message(self, text="", chatid=None, userid=None, attachments=None):
         
@@ -101,7 +126,7 @@ class VkUser(object):
         op = self.api.messages.send
         args = {"chat_id" :chatid, "user_id" : userid, "message" : text, "attachment" : attachments}
 
-        print "sending message from [{}]".format(self.user)
+        print "Sending message"
         print pretty_dump(args)
         
         ret = rated_operation(op, args)
@@ -111,20 +136,17 @@ class VkUser(object):
 
         self.update_stat("send", 1)
 
-        if not ret:
-            print "No answer for operation"
-
-        
         
     def post(self, text, chatid, userid, attachments):
 
         oppost = self.api.wall.post
         args = {"owner_id" :int(self.config["access"]["user_id"]), "message" : text, "attachments" : ",".join(attachments)}
-        print pretty_dump(args)
             
-        print "Posting on wall".format(self.user)
+        print "Posting on wall"
+        print pretty_dump(args)
+
         ret = rated_operation(oppost, args)
-        print ret
+        
         self.update_stat("attachments", len(attachments))
         self.update_stat("post", 1)
         return ret
@@ -158,7 +180,6 @@ class VkUser(object):
                 args = {"photo":i["photo"], "server":i["server"], "hash":i["hash"]}
 
                 resp = rated_operation(op, args)
-                #print resp
                 attachments.append("photo"+str(resp[0]["owner_id"])+"_"+str(resp[0]["id"]))
             except:
 
@@ -170,6 +191,7 @@ class VkUser(object):
         return attachments
 
     def upload_images_files_wall(self, files):
+        
         op = self.api.photos.getWallUploadServer
         args = {"group_id":int(self.config["access"]["user_id"])}
         upserver = rated_operation(op, args)
@@ -184,7 +206,7 @@ class VkUser(object):
                 args = {"user_id":int(self.config["access"]["user_id"]),"group_id":int(self.config["access"]["user_id"]), "photo":i["photo"], "server":i["server"], "hash":i["hash"]}
 
                 resp = rated_operation(op, args)
-                #print resp
+        
                 attachments.append("photo"+str(resp[0]["owner_id"])+"_"+str(resp[0]["id"]))
             except:
 
@@ -195,18 +217,17 @@ class VkUser(object):
 
 
     def find_audio(self, req):
-        print "Audio",req
+        print "Audio", req
         op = self.api.audio.search
         args = {"q":req, "auto_complete" : 1, "search_own" : 0, "count" : 1}
 
         resp = rated_operation(op, args)
-        print resp
+    
         try:
             audio = resp["items"][0]
             self.update_stat("audio_found", 1)
 
             r = "audio"+str(audio["owner_id"])+"_"+str(audio["id"])
-            print "Returning ",r
             return [r,]
         except:
             print "Error in audio find:"
@@ -214,6 +235,7 @@ class VkUser(object):
             return None
 
     def find_video(self, req):
+        print "Find video",req
         op = self.api.video.search
         args = {"q":req, "adult":1, "search_own":0, "count":1}
         resp = rated_operation(op,args)
@@ -228,6 +250,7 @@ class VkUser(object):
             return None
 
     def find_doc(self, req):
+            print "Find doc",req
             op = self.api.docs.search
             args = {"q":req, "count":1}
             resp = rated_operation(op,args)
@@ -242,6 +265,7 @@ class VkUser(object):
                     return None
 
     def find_wall(self, req):
+            print "Find wall",req
             op = self.api.newsfeed.search
             args = {"q":req, "count":1}
             resp = rated_operation(op,args)
@@ -254,6 +278,7 @@ class VkUser(object):
                     print "Error in video find:"
                     print pretty_dump(resp)
                     return None
+
     def get_news(self, count=10):
             op = self.api.newsfeed.get
             args = {"filters":"post", "count":count}
