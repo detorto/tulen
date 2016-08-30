@@ -219,7 +219,7 @@ class VkUser(object):
         for i in ids:
             try:
                 op = self.api.photos.saveWallPhoto
-                args = {"user_id":int(self.config["access"]["user_id"]),"group_id":int(self.config["access"]["user_id"]), "photo":i["photo"], "server":i["server"], "hash":i["hash"]}
+                args = {"user_id":int(self.config["access_token"]["user_id"]),"group_id":int(self.config["access_token"]["user_id"]), "photo":i["photo"], "server":i["server"], "hash":i["hash"]}
 
                 resp = rated_operation(op, args)
         
