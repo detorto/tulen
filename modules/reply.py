@@ -26,7 +26,7 @@ class Processor:
             if prog.match(message_body):
                 self.user.send_message(text = self.config["regexps"][word], chatid=chatid, userid=userid)
             else:
-                logger.debug("Word {} does not mathch {}".format(word,message_body))
+                logger.debug("Word {} does not mathch {}".format(word.encode("utf-8"), message_body.encode("utf-8")))
                 
                 
         for word in self.config["in_lines"].keys():

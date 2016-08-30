@@ -88,7 +88,7 @@ class VkUser(object):
 
 
     def mark_messages(self, message_ids):
-        logger.debug("Marking messages: {}".format(",".join(message_ids)))
+        logger.debug("Marking messages: {}".format(",".join([str(a) for a in message_ids])))
         if self.testmode:
             return
 
@@ -114,23 +114,22 @@ class VkUser(object):
                 exc_type, exc_value, exc_traceback = sys.exc_info()
                 logger.error("\n".join(traceback.format_exception(exc_type, exc_value, exc_traceback)))
                 self.update_stat("errors", 1)
-            finally:
-                self.update_stat("processed", 1)
 
         logger.debug("Mapping message between modules")
         self.thread_pool_modules.map_async(thread_work, [(module, message, chatid, userid) for module in self.modules])
-
 
     def process_messages(self, messages):
         ids = [msg["id"] for msg in messages]
         self.mark_messages(ids)
 
         unread_messages = [ msg for msg in messages if msg["read_state"] == 0]
-        logger.info("Unread messages: {}".format(",".join([str(m) for m in unread_messages])))
+        if len(unread_messages) > 0:
+            logger.info("Unread messages: {}".format(",".join([str(m) for m in unread_messages])))
 
         if len(unread_messages) > 0:
             logger.debug("Mapping message between msg processors [{}]".format(len(unread_messages)))
             self.thread_pool_msg.map_async(self.proc_msg_, unread_messages)
+            self.update_stat("processes",len(unread_messages))
 
     def send_message(self, text="", chatid=None, userid=None, attachments=None):
         logger.info("Sending msg [{}] to c[{}]:u[{}] with attachment [{}]".format(text.decode,
