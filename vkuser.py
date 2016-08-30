@@ -156,7 +156,7 @@ class VkUser(object):
     def post(self, text, chatid, userid, attachments):
 
         oppost = self.api.wall.post
-        args = {"owner_id" :int(self.config["access"]["user_id"]), "message" : text, "attachments" : ",".join(attachments)}
+        args = {"owner_id" :int(self.config["access_token"]["user_id"]), "message" : text, "attachments" : ",".join(attachments)}
             
         print "Posting on wall"
         print pretty_dump(args)
@@ -209,7 +209,7 @@ class VkUser(object):
     def upload_images_files_wall(self, files):
         
         op = self.api.photos.getWallUploadServer
-        args = {"group_id":int(self.config["access"]["user_id"])}
+        args = {"group_id":int(self.config["access_token"]["user_id"])}
         upserver = rated_operation(op, args)
 
         photos = self.__upload_images(upserver,files)
@@ -225,7 +225,7 @@ class VkUser(object):
         
                 attachments.append("photo"+str(resp[0]["owner_id"])+"_"+str(resp[0]["id"]))
             except:
-
+                raise
                 print "Error in photo saving:"
                 return None
 
