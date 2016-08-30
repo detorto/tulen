@@ -82,9 +82,7 @@ import random
 class Processor:
     def __init__(self, vkuser):
         self.config = yaml.load(open(vkuser.module_file("hangman", CONFIG_FILE)))
-        self.user = vkuser
-
-    
+        self.user = vkuser    
         self.game_context = {"word":self.load_random_word(), "opened": [], "errors":[], "session_started":False }
 
     def load_random_word(self):
@@ -100,133 +98,123 @@ class Processor:
 
         return a[random.randint(0,len(a)-1)];
 
+    def fail_text(self):
+        return random.choice(self.config["fails"])
+
+
+    def win_text(self):
+        return random.choice(self.config["success"])
+
+
     def save_context(self, cid):
         with io.open("./files/hangman_{}.context".format(cid), 'w', encoding='utf-8') as f:
             f.write(unicode(json.dumps(self.game_context, ensure_ascii=False,indent=4, separators=(',', ': '))))
 
-	def load_context(self, cid):
-		self.game_context = load_json("./files/hangman_{}.context".format(cid))
-                if not self.game_context: 
-                        self.game_context = {"word":load_random_word(), "opened": [], "errors":[], "session_started":False }
+    def load_context(self, cid):
+        self.game_context = load_json("./files/hangman_{}.context".format(cid))
+        if not self.game_context: 
+            self.game_context = {"word":self.load_random_word(), "opened": [], "errors":[], "session_started":False }
 
-        def generate_message(self):
-                print self.game_context
-                print self.game_context["word"]
-                imgp = len(self.game_context["errors"])
+    def generate_message(self):
+        print self.game_context
+        print self.game_context["word"]
+        imgp = len(self.game_context["errors"])
 
-                if imgp >= len(images):
-                        imgp = len(images)-1
+        if imgp >= len(images):
+                imgp = len(images)-1
 
-                img = copy.copy(images[imgp])
+        img = copy.copy(images[imgp])
 
-                img[3] += u" Слово: "
+        img[3] += u" Слово: "
 
-                for l in self.game_context["word"]:
-                        if l in self.game_context["opened"]:
-                                img[3] += l + u" "
-                        else:
-                                img[3] += u"_ "
-
-
-                img[3] += u"("+str(len(self.game_context["word"]))+u")"
-                img[4] += u" Ошибки: "
-                img[4] += u", ".join(self.game_context["errors"])
+        for l in self.game_context["word"]:
+                if l in self.game_context["opened"]:
+                        img[3] += l + u" "
+                else:
+                        img[3] += u"_ "
 
 
-                if self.is_end():
+        img[3] += u"("+str(len(self.game_context["word"]))+u")"
+        img[4] += u" Ошибки: "
+        img[4] += u", ".join(self.game_context["errors"])
 
-                    if self.is_win():
-                        pp = random.randint(0, len(greetings) - 1)
-                        img[6] +=  u"\n" + greetings[pp]
-                    else:
-                        img[6] +=  u"\n" +  looses[random.randint(0,len(looses)-1)] + u"\nСлово: " + self.game_context["word"]
+        if self.is_end():
+            if self.is_win():
+                img[6] +=  u"\n" + self.win_text()
+            else:
+                img[6] +=  u"\n" +  self.fail_text() + u"\nСлово: " + self.game_context["word"]
 
-                return "\n".join(img).replace(' ',"&#8194;");
+        return "\n".join(img).replace(' ',"&#8194;");
 
+    def process_message(self, message, chatid, userid):
+        print message
+        self.load_context(chatid or userid)
+        message_body = message["body"].lower().strip()
 
-
-        def process_message(self, message, chatid, userid):
-            print message
-            self.load_context(chatid or userid)
-            message_body = message["body"].lower().strip()
-
-            if message_body.startswith(self.config["react_on"]):
-                    self.game_context = {"word" : self.load_random_word(), "opened": [], "errors":[], "session_started" : True }
-                    self.save_context(chatid or userid)
-                
-                    self.user.send_message(text = self.generate_message(), chatid=chatid, userid=userid)
-                    return
-
-            if not self.game_context["session_started"]:
-                    return
-
-            if message_body.startswith(u"слово"):
-
-                    word = message_body[len(u"слово"):].strip();
-
-                    self.open_word(word)
-                    self.save_context(chatid or userid)
-
-                    self.user.send_message(text = self.generate_message(), chatid=chatid, userid=userid)
-                    
-                    return
-
-            if not message_body.startswith(u"буква"):
-                    return
-
-            letter = message_body[len(u"буква"):].strip()[0]
-
-            self.open_letter(letter)
+        if message_body.startswith(self.config["react_on"]):
+            self.game_context = {"word" : self.load_random_word(), "opened": [], "errors":[], "session_started" : True }
             self.save_context(chatid or userid)
+        
             self.user.send_message(text = self.generate_message(), chatid=chatid, userid=userid)
-
             return
 
-        def open_word(self,word):
-        
-            if word == self.game_context["word"]:
+        if not self.game_context["session_started"]:
+                return
 
-                self.game_context["opened"].extend([w for w in word])
-                self.game_context["opened"] = list(set(self.game_context["opened"]))
-                if self.is_end():
-                    self.game_context["session_started"] = False;
-            else:
-                self.game_context["errors"].extend([w for w in word])
+        if message_body.startswith(u"слово"):
 
+            word = message_body[len(u"слово"):].strip();
+
+            self.open_word(word)
+            self.save_context(chatid or userid)
+
+            self.user.send_message(text = self.generate_message(), chatid=chatid, userid=userid)
             
-        def open_letter(self,letter):
-            if letter in self.game_context["word"]:
-                self.game_context["opened"].append(letter)
-            else:
-                self.game_context["errors"].append(letter)
-                self.game_context["errors"] = list(set(self.game_context["errors"]))
+            return
 
+        if not message_body.startswith(u"буква"):
+            return
+
+        letter = message_body[len(u"буква"):].strip()[0]
+
+        self.open_letter(letter)
+        self.save_context(chatid or userid)
+        self.user.send_message(text = self.generate_message(), chatid=chatid, userid=userid)
+
+        return
+
+    def open_word(self,word):
+    
+        if word == self.game_context["word"]:
+
+            self.game_context["opened"].extend([w for w in word])
+            self.game_context["opened"] = list(set(self.game_context["opened"]))
             if self.is_end():
-                    self.game_context["session_started"] = False;
-                
+                self.game_context["session_started"] = False;
+        else:
+            self.game_context["errors"].extend([w for w in word])
 
-        def is_end(self):
-            if len(self.game_context["errors"]) >= 6:
-                return True
+        
+    def open_letter(self,letter):
+        if letter in self.game_context["word"]:
+            self.game_context["opened"].append(letter)
+        else:
+            self.game_context["errors"].append(letter)
+            self.game_context["errors"] = list(set(self.game_context["errors"]))
+
+        if self.is_end():
+                self.game_context["session_started"] = False;
             
-            return self.is_win()
 
-            
-        def is_win(self):
-            for l in self.game_context["word"]:
-                if l not in self.game_context["opened"]:
-                    return False
-            return True;
+    def is_end(self):
+        if len(self.game_context["errors"]) >= 6:
+            return True
+        
+        return self.is_win()
 
-
-if __name__ == '__main__':
-        class user:
-                def send_message(self,text,chatid,userid):
-                        print text
-                user = "asdasd"
-        p = Processor({u"react_on":u"повесьте нас"}, user())
-
-        while True:
-                msg = raw_input(">> ")
-                p.process_message({"body":msg.decode("utf-8")},0,0)
-
+        
+    def is_win(self):
+        for l in self.game_context["word"]:
+            if l not in self.game_context["opened"]:
+                return False
+        return True;

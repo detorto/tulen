@@ -9,8 +9,11 @@ import traceback
 from multiprocessing.pool import ThreadPool
 import multiprocessing
 import os
-class VkUser(object):
+import logging
 
+logger = logging.getLogger('tulen')
+
+class VkUser(object):
 
     def __init__(self, config, update_stat, testmode = False):
         self.config = config
@@ -20,9 +23,11 @@ class VkUser(object):
         if testmode:
             session = None
             self.api = None
+            logger.info("Running in test mode")
         else:
             session = vk.Session(access_token=self.config["access_token"]["value"])
             self.api = vk.API(session,  v='5.50', timeout = 10)
+            logger.info("VK API created")
         
         modules_list_file = self.config.get("enabled_modules_list", None)
 
@@ -31,14 +36,17 @@ class VkUser(object):
         else:
             mods = [l.strip() for l in open(modules_list_file).readlines()]
 
+        mods = [m for m in mods if not m.startswith("#")]
         if not mods:
             raise RuntimeError("Can't find any module to load!")
-
+        logger.info("Enabled modules: [{}]".format(",".join(mods)))
+        
         self.load_modules(mods)
 
         self.thread_pool_modules = ThreadPool(int(config.get("mod_threads", 4)))
         self.thread_pool_msg = ThreadPool(int(config.get("msg_threads", 4)))
         self.mutex = multiprocessing.Lock()
+        logger.info("Multiprocessing intiated: "+str(self.thread_pool_modules) + " "+ str(self.thread_pool_modules))
         self.testmode = testmode
 
 
@@ -51,33 +59,36 @@ class VkUser(object):
             processor = getattr(package, module)
             modprocessor = processor.Processor(self)
             self.modules.append(modprocessor)
-            print "Loaded module: [{}]".format("modules"+"."+module)
+            logger.info("Loaded module: [{}]".format("modules"+"."+module))
 
     def module_file(self,  modname, filename):
-        return os.path.join(self.config.get("modules_config_dir","config"),modname, filename)
+        return os.path.join(self.config.get("modules_config_dir", "config"),modname, filename)
 
     def update_stat(self, stat, value):
+        logger.debug("Mutex acuire")
         self.mutex.acquire()
+        logger.debug("Mutex acuired")
         self.update_stat_(stat, value)
         self.mutex.release()
-
+        logger.debug("Mutex released")
 
     def process_all_messages(self):
-
+        logger.debug("Retrieving messages")
         if self.testmode:
             msg = raw_input("msg>> ")
             msg = msg.decode('utf-8')
-            self.process_messages( [{"read_state":0, "id":"0","body":msg,"chat_id":2}])
-            return 
-
-        operation = self.api.messages.get
-        args = {"count" : self.config["message_count"]}
-        ret = rated_operation( operation, args )
-        messages  = ret["items"]
+            messages = [{"read_state":0, "id":"0","body":msg,"chat_id":2}]
+        else:
+            operation = self.api.messages.get
+            args = {"count" : self.config["message_count"]}
+            ret = rated_operation( operation, args )
+            messages  = ret["items"]
+        
         self.process_messages(messages)
 
 
     def mark_messages(self, message_ids):
+        logger.debug("Marking messages: {}".format(",".join(message_ids)))
         if self.testmode:
             return
 
@@ -87,6 +98,7 @@ class VkUser(object):
 
 
     def proc_msg_(self,message):
+        logger.debug("Processing msg {}".format(str(message)))
         
         chatid = message.get("chat_id",None)
         userid = None
@@ -98,13 +110,14 @@ class VkUser(object):
             try:
                 data[0].process_message(message=data[1], chatid=data[2], userid=data[3])
             except:
-                print "Something wrong while processin user [{}]".format(self.user)
+                logger.error("Something wrong while processin {}".format(str(data)))
                 exc_type, exc_value, exc_traceback = sys.exc_info()
-                traceback.print_exception(exc_type, exc_value, exc_traceback)
+                logger.error("\n".join(traceback.format_exception(exc_type, exc_value, exc_traceback)))
                 self.update_stat("errors", 1)
             finally:
                 self.update_stat("processed", 1)
 
+        logger.debug("Mapping message between modules")
         self.thread_pool_modules.map_async(thread_work, [(module, message, chatid, userid) for module in self.modules])
 
 
@@ -113,26 +126,30 @@ class VkUser(object):
         self.mark_messages(ids)
 
         unread_messages = [ msg for msg in messages if msg["read_state"] == 0]
-        if len(unread_messages) > 0:
+        logger.info("Unread messages: {}".format(",".join([str(m) for m in unread_messages])))
 
+        if len(unread_messages) > 0:
+            logger.debug("Mapping message between msg processors [{}]".format(len(unread_messages)))
             self.thread_pool_msg.map_async(self.proc_msg_, unread_messages)
 
-
     def send_message(self, text="", chatid=None, userid=None, attachments=None):
-        
+        logger.info("Sending msg [{}] to c[{}]:u[{}] with attachment [{}]".format(text.decode,
+                                                                                    chatid,
+                                                                                    userid,
+                                                                                    repr(attachments)))
+        if self.testmode:
+            print "----",text, attachments
+            return 
+
         if not attachments:
             attachments = {}
             
         op = self.api.messages.send
-        args = {"chat_id" :chatid, "user_id" : userid, "message" : text, "attachment" : attachments}
-
-        print "Sending message"
-        print pretty_dump(args)
-        
+        args = {"chat_id" :chatid, "user_id" : userid, "message" : text, "attachment" : attachments}        
         ret = rated_operation(op, args)
         
         if not ret:
-            print "No answer for operation"
+            logger.warning("No answer for operation")
 
         self.update_stat("send", 1)
 

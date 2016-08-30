@@ -1,6 +1,6 @@
-react_on: 
-        - .*тюлен.*
-
-dict: dict.txt
+.*тюлен.*:
+    dict: dict.txt
+.*олень.*:
+    dict: dict2.txt
 
 

@@ -4,7 +4,11 @@
 import time
 import re
 import yaml
+import logging
+
+logger = logging.getLogger()
 CONFIG_FILE = "conf.yaml"
+
 class Processor:
 
     def __init__(self, vkuser):
@@ -21,6 +25,8 @@ class Processor:
             prog = re.compile(word,flags=re.IGNORECASE| re.UNICODE) 
             if prog.match(message_body):
                 self.user.send_message(text = self.config["regexps"][word], chatid=chatid, userid=userid)
+            else:
+                logger.debug("Word {} does not mathch {}".format(word,message_body))
                 
                 
         for word in self.config["in_lines"].keys():

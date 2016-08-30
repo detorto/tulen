@@ -22,18 +22,47 @@ import io
 from optparse import OptionParser
 import yaml
 
+import multiline_formatter
+import logging
+
+LOG_SETTINGS = {
+'version': 1,
+'handlers': {
+    'console': {
+        'class': 'logging.StreamHandler',
+        'level': 'INFO',
+        'formatter': 'default',
+        'stream': 'ext://sys.stdout',
+    },
+},
+'formatters': {
+    'default': {
+        '()': 'multiline_formatter.formatter.MultilineMessagesFormatter',
+        'format': '[%(levelname)s] %(message)s'
+            },
+},
+'loggers': {
+    'tulen': {
+        'level':'DEBUG',
+        'handlers': ['console',]
+        },
+}
+}
+
+logging.config.dictConfig(LOG_SETTINGS)
+logger = logging.getLogger("tulen")
+
+
 def process(config, testmode):
     
     def update_stat(stat, value):
-        
         stats_file_path = config.get("stats_file", "statistics.yaml");
         
         try:
             f = yaml.load(open(stats_file_path))
         except:
             f = None
-        
-        
+
         if f:
             upd = f.get(stat, 0)
             upd += value;   
@@ -43,24 +72,22 @@ def process(config, testmode):
         
         with io.open(stats_file_path, 'w', encoding='utf-8') as fo:
             fo.write(unicode(yaml.dump(f)))
-        
+        logger.info("Updated statistic: {} :+{}".format(stat,value))
+    
 
-
-
-    print "Creating user api... "
+    
     vkuser = VkUser(config, update_stat, testmode)
-
-    print "Starting processing... "
+    logger.info("Created user api")
+    logger.info("Starting processing... ")
     while True:
         try:
             vkuser.process_all_messages()
         except:
-            print "Something wrong while processin dialogs [{}]"
+            logger.error("Something wrong while processin dialogs")
             exc_type, exc_value, exc_traceback = sys.exc_info()
-            traceback.print_exception(exc_type, exc_value, exc_traceback)
+            logger.error("\n".join(traceback.format_exception(exc_type, exc_value, exc_traceback)))
             if testmode:
                 raise
-
 
 def main():
     parser = OptionParser()
@@ -71,15 +98,15 @@ def main():
 
 
     (options, args) = parser.parse_args()
-    print "*************Tulen vk.com bot****************"
+    logger.info ( "*************Tulen vk.com bot****************" )
 
     config = yaml.load(open(options.config));
 
-    print "Loaded configuration"
     
-    print yaml.dump(config)
-    if options.testmode:
-        print "TEST MODE"
+    
+    logger.info("Loaded configuration ")
+    logger.info(yaml.dump(config))
+    
     process(config, options.testmode)
     
 if __name__ == '__main__':

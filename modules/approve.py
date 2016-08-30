@@ -18,13 +18,13 @@ class Processor:
 
 	def process_message(self, message, chatid, userid):
 		
-		for word in self.config["react_on"]:
+		for word in self.config.keys():
 	
 			message_body = message["body"].lower()
 
 			prog = re.compile(word)
 
 			if prog.match(message_body):
-				reps = [l.strip() for l in open(vkuser.module_file("approve", self.config["dict"])).readlines()]
-				rep = random.choice(reps)			
+				reps = [l.strip() for l in open(self.user.module_file("approve", self.config[word]["dict"])).readlines()]
+				rep = random.choice(reps)
 				self.user.send_message(text = rep, chatid=chatid, userid=userid)

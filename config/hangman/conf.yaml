@@ -1,5 +1,4 @@
-react_on: 
-    - повесьте нас
+react_on: повесьте нас
 
 regular_dict: regular_dict.txt
 secret_dict: secret_dict.txt

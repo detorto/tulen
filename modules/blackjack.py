@@ -19,23 +19,6 @@ def load_json(filename):
 import random
 
 
-greetings = [   u"Охуеть, ну вообще прям, молодцы!",
-                u"Ох ты ебаный ты нахуй, да это же победа!",
-                u"Вау, вот это да, поздравляю!",
-                u"Таки вы прямо филологи, пагни",
-                u"Как боги",
-                u"Я БЛЯ ДОЛГА ПИЗДЕТЬ НЕ СТАНУ!\nХОЧЕШ ХУЙ ИЗ ШТАНОВ ДОСТАНУ?\nХОЧЕШ ВСЁ РАЗЪЕБУ ВЗАМЕС?\nПАЗДРАВЛЯЮ ТЕБЯ БАЛБЕС!",
-                u"Ладно, ладно, вы победили"]
-
-looses = [u"Ну все, кровь кишки распидорасило",
-          u"Гроб гроб кладбище, пидор, смерть мерзкая",
-          u"Кажется вы слегка обьебались",
-          u"Подставляй туза, маня",
-          u"Лохи",
-          u"И ТУТ СУКА ВЗРЫВ НАХУЙ КИШКИ В СТЕНУ БЛЯДЬ МОЗГИ ГОВНО РАСЧЛЕНЕНКА",
-          u"Слышиш ты дитя отродия антихриста,Угомонись и не осерай людей,блин а то можем только ты и я встретиться и таких пиздюлей выхватишь,я таких как ты в мире не видела,урод вышего коления!Опустись и посмотри в зеркало,а за тем с испугу ударься головой об стену!Если я живу в Украине это ничо не значит,я вообщето русская и пизды дам ебать сам себя будешь!!!!Свернись в клубочик и утихни!",
-        ]
-
 cards = [   {u"2":u"пикей"},{u"2":u"червей"},{u"2":u"бубей"},{u"2":u"крестей"},
             {u"3":u"пикей"},{u"3":u"червей"},{u"3":u"бубей"},{u"3":u"крестей"},
             {u"4":u"пикей"},{u"4":u"червей"},{u"4":u"бубей"},{u"4":u"крестей"},
@@ -53,7 +36,7 @@ cards = [   {u"2":u"пикей"},{u"2":u"червей"},{u"2":u"бубей"},{u"
 
 def card_cost(card, scores):
     num = card.items()[0][0]
-    print num
+    
     if num not in [u"король",u"валет",u"дама",u"туз"]:
         return int(num)
 
@@ -92,9 +75,8 @@ class Processor:
 
         
         def generate_stack(self):
-            #print "Gen stack"
             self.stack = shuffle_cards()
-            #print self.stack
+            
 
         def take_cards(self):
             if len(self.stack) > 0:
@@ -104,20 +86,17 @@ class Processor:
                 card = self.stack.pop(0)
                 self.benderstack.append(card)
 
-            
         def new_game_context(self):
-            print "New context"
             self.generate_stack()
             self.userstack = []
             self.benderstack = []
             self.take_cards()
             self.take_cards()
             if not self.game_context:
-                print "New game context"
+         
                 self.game_context = {"gamers" : {}, "bender_bets":[], "user_bets":[],
                             "stack" : self.stack, "bender":self.benderstack, "user":self.userstack,"session_started":True}
             else:
-                print "New stack"
                 self.game_context["stack"] = self.stack
                 self.game_context["bender"] = self.benderstack
                 self.game_context["user"] = self.userstack
