@@ -12,13 +12,16 @@ class Processor:
 
 	def like_wall(self):
 		print "Will like a wall!"
+		try:
+			news = self.user.get_news()
 
-		news = self.user.get_news()
-		for n in news:
-			likes = n.get("likes",None)
-			if likes and likes["user_likes"] == 0 and likes["can_like"] == 1:
-				print "LIKE", n["post_id"]
-				self.user.like_post(n["post_id"],n["source_id"])
+			for n in news:
+				likes = n.get("likes",None)
+				if likes and likes["user_likes"] == 0 and likes["can_like"] == 1:
+					print "LIKE", n["post_id"]
+					self.user.like_post(n["post_id"],n["source_id"])
+		except:
+			pass
 
 
 	def __init__(self , user):

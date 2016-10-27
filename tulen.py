@@ -88,6 +88,7 @@ def process(config, testmode):
             logger.error("\n".join(traceback.format_exception(exc_type, exc_value, exc_traceback)))
             if testmode:
                 raise
+            continue
 
 def main():
     parser = OptionParser()

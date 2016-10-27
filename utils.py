@@ -1,7 +1,7 @@
 import json
 import time
 import multiprocessing
-
+import sys, traceback
 def load_json(filename):
 	try:
 		data = json.load(open(filename))
@@ -17,7 +17,7 @@ def pretty_dump(data):
 import time
 import threading
 from functools import wraps
-
+import sys
 def rate_limited(max_per_second, mode='wait', delay_first_call=False):
     """
     Decorator that make functions not be called faster than
@@ -34,12 +34,22 @@ def rate_limited(max_per_second, mode='wait', delay_first_call=False):
         @wraps(func)
         def rate_limited_function(*args, **kwargs):
             def run_func():
-
                 lock.release()
-                ret = func(*args, **kwargs)
-                last_time_called[0] = time.clock()
-                return ret
+                print "Lock RELEASED3",str(func)
+                try:
+                    ret = func(*args, **kwargs)
+                    last_time_called[0] = time.clock()
+                    return ret
+                except:
+                    print sys.exc_info()
+                    traceback.print_exc()
+                finally:
+                    last_time_called[0] = time.clock()
+                return None
+
+            print "Lock ACQ", str(func)
             lock.acquire()
+            print "Lock OK", str(func)
             elapsed = time.clock() - last_time_called[0]
             left_to_wait = min_interval - elapsed
             if delay_first_call:
@@ -49,6 +59,7 @@ def rate_limited(max_per_second, mode='wait', delay_first_call=False):
                         return run_func()
                     elif mode == 'kill':
                         lock.release()
+                        print "Lock RELEASED1",str(func)
                         return
                 else:
                     return run_func()
@@ -62,10 +73,26 @@ def rate_limited(max_per_second, mode='wait', delay_first_call=False):
                         return run_func()
                     elif mode == 'kill':
                         lock.release()
+                        print "Lock RELEASED2",str(func)
                         return
         return rate_limited_function
     return decorate
 
-@rate_limited(3)  # 2 per second at most
+def RateLimited(maxPerSecond):
+    minInterval = 1.0 / float(maxPerSecond)
+    def decorate(func):
+        lastTimeCalled = [0.0]
+        def rateLimitedFunction(*args,**kargs):
+            elapsed = time.clock() - lastTimeCalled[0]
+            leftToWait = minInterval - elapsed
+            if leftToWait>0:
+                time.sleep(leftToWait)
+            ret = func(*args,**kargs)
+            lastTimeCalled[0] = time.clock()
+            return ret
+        return rateLimitedFunction
+    return decorate
+    
+@RateLimited(2)  # 2 per second at most
 def rated_operation(operation, args):
 	return operation(**args)

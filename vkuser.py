@@ -196,6 +196,7 @@ class VkUser(object):
                 args = {"photo":i["photo"], "server":i["server"], "hash":i["hash"]}
 
                 resp = rated_operation(op, args)
+		print "Uload resp:",resp
                 attachments.append("photo"+str(resp[0]["owner_id"])+"_"+str(resp[0]["id"]))
             except:
 
@@ -306,3 +307,15 @@ class VkUser(object):
             args = {"type":"post", "item_id":post_id, "owner_id":owner_id}
             resp = rated_operation(op,args)
 
+
+    def friendStatus(self, user_id):
+        op = self.api.friends.areFriends
+        args = {"user_ids":user_id}
+        resp = rated_operation(op,args)
+        return resp[0]["friend_status"]
+    
+    def friendAdd(self, user_id ):
+        op = self.api.friends.add
+        args = {"user_id":user_id}
+        resp = rated_operation(op,args)
+        return True
