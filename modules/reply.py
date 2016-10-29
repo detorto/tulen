@@ -33,6 +33,7 @@ class Processor:
                 
                 if word == message_body_low:
                     self.user.send_message(text = self.config["in_lines"][word], chatid=chatid, userid=userid)
+                    
 
                 if message_body_low.endswith(u" "+word):
                     self.user.send_message(text = self.config["in_lines"][word], chatid=chatid, userid=userid)

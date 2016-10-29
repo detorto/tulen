@@ -99,6 +99,7 @@ class Processor:
     def __init__(self,  user):
         self.banned = False
         self.user = user
+        self.chats_know_about_ban = []
 
     def getCaptchaImage(self, soup):
         i = soup.find("img", { "class" : "form__captcha" })
@@ -127,23 +128,35 @@ class Processor:
 
             if self.banned:
                 print "-------POST CAPTHCA"
-                self.postCaptcha(req)
-                req = self.prev_req
+                if chatid in self.chats_know_about_ban:
+                    self.postCaptcha(req)
+                    req = self.prev_req
+                    self.chats_know_about_ban = []
+                else:
+                    print "--------- BANNDED AND DO NOT KNOW",chatid
+                    msg_attachments = self.user.upload_images_files([self.last_capthca_img,])
+                    self.prev_req = req;
+                    self.user.send_message(text=u"Такие дела, голуби. Ответьте капча_с_картинки.жпг", attachments = msg_attachments, chatid = chatid, userid=userid)
+                    self.chats_know_about_ban.append(chatid)
+                    return
 
             html = get_soup(req)    
             if isBanned(html):
                 print "-------BANNDED"
                 self.banned = True
-                img = self.getCaptchaImage(html)
-                msg_attachments = self.user.upload_images_files([img,])
+                self.last_capthca_img = self.getCaptchaImage(html)
+                msg_attachments = self.user.upload_images_files([self.last_capthca_img,])
                 self.prev_req = req;
-                self.user.send_message(text=u"Помогите разгадать, меня забанили. Ответьте капча_с_картинки.жпг", attachments = msg_attachments, chatid = chatid, userid=userid)
-                
+                self.user.send_message(text=u"Такие дела, голуби. Ответьте капча_с_картинки.жпг", attachments = msg_attachments, chatid = chatid, userid=userid)
+                self.chats_know_about_ban.append(chatid)
                 return
+
             else:                        
+
                 img = get_random_image(html)
                 print "-------NOT BANNED"
                 self.banned = False;
+                self.chats_know_about_ban = []
 
             if not img:
                 self.user.send_message(text=u"Уупс, не нашлось ничего на \""+req+"\"", chatid = chatid, userid=userid)
@@ -156,11 +169,11 @@ class Processor:
                 return
             self.user.send_message(text=u"["+req+"]", attachments = msg_attachments, chatid = chatid, userid=userid)
             
-            wall_attachments = self.user.upload_images_files_wall([img,])
-            if not wall_attachments:
-                print "Error in wall attachments"
-                return
-            self.user.post(text=u"["+req+"]", attachments = wall_attachments, chatid = chatid, userid=userid)
+            #wall_attachments = self.user.upload_images_files_wall([img,])
+            #if not wall_attachments:
+            #    print "Error in wall attachments"
+            #    return
+            #self.user.post(text=u"["+req+"]", attachments = wall_attachments, chatid = chatid, userid=userid)
 
 
 

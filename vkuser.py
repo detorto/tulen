@@ -154,7 +154,7 @@ class VkUser(object):
 
         
     def post(self, text, chatid, userid, attachments):
-
+	#return None
         oppost = self.api.wall.post
         args = {"owner_id" :int(self.config["access_token"]["user_id"]), "message" : text, "attachments" : ",".join(attachments)}
             
@@ -208,7 +208,7 @@ class VkUser(object):
         return attachments
 
     def upload_images_files_wall(self, files):
-        
+        #return [] 
         op = self.api.photos.getWallUploadServer
         args = {"group_id":int(self.config["access_token"]["user_id"])}
         upserver = rated_operation(op, args)

@@ -192,7 +192,7 @@ class Processor:
         def process_bet_on_user(self,uid, bet):
             
             if not self.has_money(uid):
-                self.add_money(1000,uid)
+                self.add_money(5000,uid)
 
             if self.get_money(uid) < bet:
                 bet = self.get_money(uid)
@@ -205,7 +205,7 @@ class Processor:
 
         def process_bet_on_bot(self,uid, bet):
             if not self.has_money(uid):
-                self.add_money(1000,uid)
+                self.add_money(5000,uid)
 
             if self.get_money(uid) < bet:
                 bet = self.get_money(uid)
@@ -245,7 +245,7 @@ class Processor:
         def get_deposit(self, uid):
 
             if not self.has_money(uid):
-                self.add_money(1000,uid)
+                self.add_money(5000,uid)
 
             return u"У вас на счету {}, дорогуша".format(self.get_money(uid))
 
