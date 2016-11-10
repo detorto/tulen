@@ -2,5 +2,7 @@
     dict: dict.txt
 .*люблю.*тебя.*:
     dict: dict2.txt
+.*ахах.*: 
+    dict: dict3.txt
 
 

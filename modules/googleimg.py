@@ -14,7 +14,7 @@ import re
 import urllib2
 import os
 
-from apscheduler.schedulers.background import BackgroundScheduler
+#from apscheduler.schedulers.background import BackgroundScheduler
 MAX_IMAGES = 15
 CURRENT_IMAGE=0
 
@@ -94,6 +94,22 @@ def get_random_image(soup):
     
     return download_image(image, get_new_file_path())
 
+def get_all_images(soup):
+    a =  soup.find_all("a",{"class":"gallery__item carousel__item"})
+    if len(a) == 0:
+        return None
+
+    for i,h in enumerate(a):
+        try:
+            h = h.get("href")
+            parsed = urlparse.urlparse(h)
+            image = urlparse.parse_qs(parsed.query)['img_url'][0]
+        
+            download_image(image, "./timgs/{}.jpg".format(i)) 
+        except:
+            pass
+
+
 class Processor:
 
     def __init__(self,  user):
@@ -136,7 +152,7 @@ class Processor:
                     print "--------- BANNDED AND DO NOT KNOW",chatid
                     msg_attachments = self.user.upload_images_files([self.last_capthca_img,])
                     self.prev_req = req;
-                    self.user.send_message(text=u"Такие дела, голуби. Ответьте капча_с_картинки.жпг", attachments = msg_attachments, chatid = chatid, userid=userid)
+                    self.user.send_message(text=u"Такие дела, голуби. Ответьте капча_с_картинки.жпг. КАПЧА_С_КАРТИНКИ.ЖПГ блять, а не просто капча_с_картинки.", attachments = msg_attachments, chatid = chatid, userid=userid)
                     self.chats_know_about_ban.append(chatid)
                     return
 
@@ -147,7 +163,7 @@ class Processor:
                 self.last_capthca_img = self.getCaptchaImage(html)
                 msg_attachments = self.user.upload_images_files([self.last_capthca_img,])
                 self.prev_req = req;
-                self.user.send_message(text=u"Такие дела, голуби. Ответьте капча_с_картинки.жпг", attachments = msg_attachments, chatid = chatid, userid=userid)
+                self.user.send_message(text=u"Такие дела, голуби. Ответьте капча_с_картинки.жпг. КАПЧА_С_КАРТИНКИ.ЖПГ блять, а не просто капча_с_картинки.", attachments = msg_attachments, chatid = chatid, userid=userid)
                 self.chats_know_about_ban.append(chatid)
                 return
 
@@ -180,10 +196,10 @@ class Processor:
 
 if __name__ == "__main__":
         import sys
-        html = get_soup("hui")
+        html = get_soup(u"мем тюлень")
         if isBanned(html):
            print "banned"
         else:
-            img = get_random_image(html)
+            get_all_images(html)
 
-        print img
+        

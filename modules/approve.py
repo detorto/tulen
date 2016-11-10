@@ -27,4 +27,12 @@ class Processor:
 			if prog.match(message_body):
 				reps = [l.strip() for l in open(self.user.module_file("approve", self.config[word]["dict"])).readlines()]
 				rep = random.choice(reps)
-				self.user.send_message(text = rep, chatid=chatid, userid=userid)
+				if rep.startswith("img:"):
+					print rep
+					f = self.user.module_file("approve", rep[rep.rindex("img"):])
+					print f
+					attc = self.user.upload_images_files([f,])
+					self.user.send_message(text = "", attachments = attc, chatid=chatid, userid=userid)
+					return
+				else:
+					self.user.send_message(text = rep, chatid=chatid, userid=userid)

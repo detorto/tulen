@@ -147,7 +147,7 @@ class Processor:
         return "\n".join(img).replace(' ',"&#8194;");
 
     def process_message(self, message, chatid, userid):
-        print message
+       
         self.load_context(chatid or userid)
         message_body = message["body"].lower().strip()
 

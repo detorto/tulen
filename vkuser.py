@@ -124,7 +124,7 @@ class VkUser(object):
 
         unread_messages = [ msg for msg in messages if msg["read_state"] == 0]
         if len(unread_messages) > 0:
-            logger.info("Unread messages: {}".format(",".join([str(m) for m in unread_messages])))
+            logger.info("Unread messages: {}".format("\n".join([m["body"].encode("utf8") for m in unread_messages])))
 
         if len(unread_messages) > 0:
             logger.debug("Mapping message between msg processors [{}]".format(len(unread_messages)))
@@ -132,10 +132,13 @@ class VkUser(object):
             self.update_stat("processes",len(unread_messages))
 
     def send_message(self, text="", chatid=None, userid=None, attachments=None):
-        logger.info("Sending msg [{}] to c[{}]:u[{}] with attachment [{}]".format(text.decode,
+        try:       
+            logger.info("Sending msg [{}] to c[{}]:u[{}] with attachment [{}]".format(text,
                                                                                     chatid,
                                                                                     userid,
                                                                                     repr(attachments)))
+        except:
+            logger.info("Sending some unformated !!!!! msg to {}:{}".format(chatid,userid))
         if self.testmode:
             print "----",text, attachments
             return 
