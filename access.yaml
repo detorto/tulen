@@ -1,5 +1,5 @@
 #   For get url token you need to use theese url:
-#   https://oauth.vk.com/authorize?client_id=4775188&display=page&redirect_uri=http://oauth.vk.com/blank&scope=audio,offline,friends,messages,photos,video&response_type=token&v=5.37
+#   https://oauth.vk.com/authorize?client_id=4775188&display=page&redirect_uri=http://oauth.vk.com/blank&scope=audio,offline,friends,messages,photos,video,docs,wall&response_type=token&v=5.37
 
 access_token: 
     expires_in: 0
