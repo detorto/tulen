@@ -10,6 +10,7 @@ from multiprocessing.pool import ThreadPool
 import multiprocessing
 import os
 import logging
+import random
 
 logger = logging.getLogger('tulen')
 
@@ -82,10 +83,16 @@ class VkUser(object):
             operation = self.api.messages.get
             args = {"count" : self.config["message_count"]}
             ret = rated_operation( operation, args )
-            messages  = ret["items"]
-        
+            messages = ret["items"]
+
         self.process_messages(messages)
 
+    def get_all_friends(self, fields):
+        logger.debug("Retrieving messages")
+
+        operation = self.api.friends.get
+        args = {"fields": fields}
+        return rated_operation(operation, args)
 
     def mark_messages(self, message_ids):
         logger.debug("Marking messages: {}".format(",".join([str(a) for a in message_ids])))
@@ -144,7 +151,10 @@ class VkUser(object):
             attachments = {}
             
         op = self.api.messages.send
-        args = {"chat_id" :chatid, "user_id" : userid, "message" : text, "attachment" : attachments}        
+        if isinstance(userid, (int, long)):
+            args = {"chat_id" :chatid, "user_id" : userid, "message" : text, "attachment" : attachments}
+        else:
+            args = {"chat_id": chatid, "domain": userid, "message": text, "attachment": attachments}
         ret = rated_operation(op, args)
         
         if not ret:
@@ -152,7 +162,23 @@ class VkUser(object):
 
         self.update_stat("send", 1)
 
-        
+    def send_sticker(self, user_id, peer_id, chat_id, sticker_id=0):
+        op = self.api.messages.sendSticker
+        if isinstance(user_id, (int, long)):
+            args = {"user_id": user_id, "peer_id": peer_id, "chat_id": chat_id,
+                    "random_id": random.randint(0xfff, 0xffffff),
+                    "sticker_id": random.randint(1, 168) if sticker_id == 0 else sticker_id}
+        else:
+            args = {"domain": user_id, "peer_id": peer_id, "chat_id": chat_id,
+                    "random_id": random.randint(0xfff, 0xffffff),
+                    "sticker_id": random.randint(1, 168) if sticker_id == 0 else sticker_id}
+        ret = rated_operation(op, args)
+        if ret == 100 or (900 <= ret <= 902):
+            args["random_id"] = random.randint(0xfff, 0xffffff)
+            args["sticker_id"] = random.randint(1, 168)
+            return rated_operation(op, args)
+        return ret
+
     def post(self, text, chatid, userid, attachments):
 	#return None
         oppost = self.api.wall.post
@@ -166,7 +192,6 @@ class VkUser(object):
         self.update_stat("attachments", len(attachments))
         self.update_stat("post", 1)
         return ret
-
 
     def __upload_images(self, upserver, files):
         photos = []
@@ -231,7 +256,6 @@ class VkUser(object):
                 return None
 
         return attachments
-
 
     def find_audio(self, req):
         print "Audio", req
