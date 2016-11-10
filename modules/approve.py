@@ -19,7 +19,7 @@ class Processor:
         reps = [l.strip() for l in open(self.user.module_file("approve", self.config[word]["dict"])).readlines()]
         rep = random.choice(reps)
         rand = random.randint(1, 100)
-        if 30 <= rand <= 70:
+        if 35 <= rand <= 65:
             self.user.send_sticker(userid, userid, chatid)
         self.user.send_message(text=rep, chatid=chatid, userid=userid)
 
