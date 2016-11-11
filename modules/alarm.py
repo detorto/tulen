@@ -70,18 +70,17 @@ timeFormats = [{"format": "%d.%m.%y %H:%M:%S", "replace": None},
 
 class Processor:
     def __init__(self, vkuser):
+        self.alarms = {}
         self.config = yaml.load(open(vkuser.module_file("alarm", CONFIG_FILE)))
         self.user = vkuser
-        self.alarms = {}
+        try:
+            self.load_alarms()
+        except Exception as e:
+            logger.warning("Alarm module Warning: Failed to load alarms, e - {}".format(e.message))
 
     def process_message(self, message, chatid, userid):
         try:
             message_body = message["body"].lower().strip()
-            try:
-                self.load_alarms(chatid or userid)
-            except Exception as e:
-                logger.warning("Alarm module (user_id:{}): Failed to load alarms"
-                               .format(userid))
 
             if message_body.startswith(self.config["react_on"]):
                 try:
@@ -109,16 +108,14 @@ class Processor:
         except:
             return
 
-    def save_alarms(self, chat_id):
-        with io.open("./files/alarms_{}.context".format(chat_id), 'w', encoding='utf-8') as f:
+    def save_alarms(self):
+        with io.open("./files/alarms.context", 'w', encoding='utf-8') as f:
             f.write(unicode(json.dumps(self.alarms, ensure_ascii=False, indent=4, separators=(',', ': '),
                                        default=datetime_to_json)))
 
-    def load_alarms(self, chat_id):
-        self.alarms = load_json("./files/alarms_{}.context".format(chat_id))
-        if not self.alarms:
-            self.alarms = {}
-        else:
+    def load_alarms(self):
+        self.alarms = load_json("./files/alarms.context")
+        if self.alarms is not None:
             for alarm_id in self.alarms.keys():
                 if self.alarms[alarm_id]["time"] < datetime.now():
                     del self.alarms[alarm_id]
@@ -131,6 +128,11 @@ class Processor:
             .format(time.strftime("%d.%m.%Y %H:%M:%S"), message)
 
     def timeout(self, chat_id, user_id, time, message):
+        if (datetime.now() - time).total_seconds() > 0:
+            logger.warning(
+                "Alarm module (chat_id, user_id:{}): timeout with message {} happened not at the time - {}"
+                    .format(chat_id, user_id, message, time.strftime("%d.%m.%Y %H:%M:%S")))
+
         self.user.send_message(text=self.compose_message_on_timeout(time, message),
                                chatid=chat_id, userid=user_id)
 
@@ -197,17 +199,18 @@ class Processor:
 
         friends = self.user.get_all_friends(["domain"])
 
-        is_friend = False
-        for friend in friends["items"]:
-            if isinstance(receiver_id, (int, long)):
-                if friend["id"] == receiver_id:
+        is_friend = receiver_id is None
+        if receiver_id is not None:
+            for friend in friends["items"]:
+                if isinstance(receiver_id, (int, long)):
+                    if friend["id"] == receiver_id:
+                        is_friend = True
+                        break
+                elif friend["domain"] == receiver_id:
                     is_friend = True
                     break
-            elif friend["domain"] == receiver_id:
-                is_friend = True
-                break
 
-        if False == is_friend:
+        if not is_friend:
             self.user.send_message(text=random.choice(self.config["responds_on_not_friends"]),
                                    chatid=chat_id, userid=user_id)
             return
@@ -228,7 +231,7 @@ class Processor:
 
         self.alarms[len(self.alarms)] = new_alarm
         self.set_alarm_clock(len(self.alarms) - 1)
-        self.save_alarms(chat_id or user_id)
+        self.save_alarms()
 
         self.user.send_message(text=random.choice(self.config["responds_on_ok"]),
                                chatid=chat_id, userid=user_id)
