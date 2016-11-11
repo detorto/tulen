@@ -93,9 +93,18 @@ class Processor:
                     self.user.send_message(text=random.choice(self.config["responds_on_exception"]),
                                            chatid=chatid, userid=userid)
             elif message_body.startswith(self.config["help_request"]):
-                msg = u"инструкция по будильнику:\n" \
-                      u"тюлень, поставь будильник [на [дату|время] [время|дату]] [для user_id|domain] [с текстом text]\n" \
-                      u"з.ы. параметр в скобках - опциональный"
+                msg = u'''
+                        инструкция по будильнику
+
+                        тюлень, поставь будильник [на [дату|время] [время|дату]] [для user_id] [с текстом text]
+
+                        з.ы. параметр в скобках - опциональный
+
+                        примеры:
+                        тюлень, поставь будильник на 23:59:59 31.12.2016 для 574627483 с текстом иметь твою мамку
+
+                        тюлень, поставь будильник на 06:00 с текстом на работу пора блеать!
+                        '''
                 self.user.send_message(text=msg, chatid=chatid, userid=userid)
         except:
             return
@@ -204,11 +213,9 @@ class Processor:
             return
 
         if time is None:
-            time = datetime.now() + timedelta(seconds=30)
+            time = datetime.now() + timedelta(seconds=20)
         elif time < datetime.now():
-            self.user.send_message(text=random.choice(self.config["responds_on_past_alarm"]),
-                                   chatid=chat_id, userid=user_id)
-            return
+            time = time.replace(day=datetime.now().day + 1)
 
         new_alarm = {"chat_id": chat_id, "user_id": receiver_id, "time": time, "message": message}
 

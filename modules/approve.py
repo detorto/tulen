@@ -24,7 +24,7 @@ class Processor:
         self.user.send_message(text=rep, chatid=chatid, userid=userid)
 
     def process_message(self, message, chatid, userid):
-        if chatid == None:
+        if chatid is None:
             self.respond(random.choice(self.config.keys()), chatid, userid)
 
         for word in self.config.keys():
