@@ -14,7 +14,8 @@ import PIL.ImageOps
    
 def glitch_an_image(local_image):
   files = {'image': open(local_image, 'rb')}
-  data= { 'method':'gray',
+  data= { 'method':'grey',
+          'columns': 'on',
           'treshold':random.randint(30,100) }
 
   r = requests.post("https://glitch-pixelsort.hyperdev.space/", files=files,data=data)
