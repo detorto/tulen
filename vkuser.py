@@ -60,6 +60,9 @@ class VkUser(object):
             processor = getattr(package, module)
             modprocessor = processor.Processor(self)
             self.modules.append(modprocessor)
+            self.exclusive_modules = [m for m in self.modules if getattr(m,"exclusive",False) == True]        
+            self.parallel_modules = [m for m in self.modules if not getattr(m,"exclusive",False)== True]
+
             logger.info("Loaded module: [{}]".format("modules"+"."+module))
 
     def module_file(self,  modname, filename):
@@ -115,7 +118,7 @@ class VkUser(object):
         
         def thread_work(data):
             try:
-                data[0].process_message(message=data[1], chatid=data[2], userid=data[3])
+                return data[0].process_message(message=data[1], chatid=data[2], userid=data[3])
             except:
                 logger.error("Something wrong while processin {}".format(str(data)))
                 exc_type, exc_value, exc_traceback = sys.exc_info()
@@ -123,7 +126,14 @@ class VkUser(object):
                 self.update_stat("errors", 1)
 
         logger.debug("Mapping message between modules")
-        self.thread_pool_modules.map_async(thread_work, [(module, message, chatid, userid) for module in self.modules])
+        print "Exmods:", len(self.exclusive_modules)        
+        for m in self.exclusive_modules:
+	
+            if thread_work((m, message, chatid, userid)) == True:
+                print "Excl module", m.__class__, "worked"
+		return 
+ 
+        self.thread_pool_modules.map_async(thread_work, [(module, message, chatid, userid) for module in self.parallel_modules])
 
     def process_messages(self, messages):
         ids = [msg["id"] for msg in messages]

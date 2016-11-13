@@ -93,6 +93,6 @@ def RateLimited(maxPerSecond):
         return rateLimitedFunction
     return decorate
     
-@RateLimited(1)  # 2 per second at most
+@RateLimited(3)  # 2 per second at most
 def rated_operation(operation, args):
 	return operation(**args)

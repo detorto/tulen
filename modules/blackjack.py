@@ -61,6 +61,7 @@ CONFIG_FILE = "conf.yaml"
 import yaml
 class Processor:
         def __init__(self, vkuser):
+                self.exclusive = True
                 self.config = yaml.load(open(vkuser.module_file("blackjack", CONFIG_FILE)))
                 self.user = vkuser
                 self.benderstack = []
@@ -313,13 +314,14 @@ class Processor:
                                 text = self.generate_message()
                                 self.save_context()
                                 self.user.send_message(text = text, chatid=chatid, userid=userid)
-                                return
+                                return True
                         
                        
                         if message_body.startswith(u"мой депозит"):
                             text = self.get_deposit(message["user_id"])
                             self.save_context()
                             self.user.send_message(text, chatid=chatid, userid=userid)        
+                            return True
                         
 
                         if not self.game_context["session_started"]:
@@ -329,25 +331,25 @@ class Processor:
                             for i in self.game_context["bender_bets"]:
                                 if message["user_id"] == i[0]:
                                     self.user.send_message(u"Вы поставили на тюленя, не мешайте игре", chatid=chatid, userid=userid)                                                
-                                    return
+                                    return True
 
                             self.take_cards()
                             text = self.generate_message()
                             self.save_context()
                             self.user.send_message(text = text, chatid=chatid, userid=userid)
-                            return
+                            return True
 
                         if message_body.startswith(u"хватит"):
                             for i in self.game_context["bender_bets"]:
                                 if message["user_id"] == i[0]:
                                     self.user.send_message(u"Вы поставили на тюленя, не мешайте игре", chatid=chatid, userid=userid)                                                
-                                    return
+                                    return True
 
                             text = self.generate_message(finish=True)
                             self.save_context()
 
                             self.user.send_message(text, chatid=chatid, userid=userid)        
-                            return
+                            return True
 
                         if message_body.startswith(u"ставлю на бота"):
                             bet = None
@@ -361,6 +363,7 @@ class Processor:
                             text = self.process_bet_on_bot(message["user_id"],bet)
                             self.save_context()
                             self.user.send_message(text, chatid=chatid, userid=userid)        
+                            return True
 
                         if message_body.startswith(u"ставлю на тюленя"):
                             bet = None
@@ -374,6 +377,7 @@ class Processor:
                             text = self.process_bet_on_bot(message["user_id"],bet)
                             self.save_context()
                             self.user.send_message(text, chatid=chatid, userid=userid)        
+                            return True
                         
                         
                         if message_body.startswith(u"ставлю на нас"):
@@ -388,6 +392,7 @@ class Processor:
                             text = self.process_bet_on_user(message["user_id"],bet)
                             self.save_context()
                             self.user.send_message(text, chatid=chatid, userid=userid)        
+                            return True
                         return
 
 if __name__ == '__main__':

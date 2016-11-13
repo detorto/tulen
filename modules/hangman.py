@@ -81,6 +81,7 @@ import random
 
 class Processor:
     def __init__(self, vkuser):
+        self.exclusive = True
         self.config = yaml.load(open(vkuser.module_file("hangman", CONFIG_FILE)))
         self.user = vkuser    
         self.game_context = {"word":self.load_random_word(), "opened": [], "errors":[], "session_started":False }
@@ -156,7 +157,7 @@ class Processor:
             self.save_context(chatid or userid)
         
             self.user.send_message(text = self.generate_message(), chatid=chatid, userid=userid)
-            return
+            return True
 
         if not self.game_context["session_started"]:
                 return
@@ -170,7 +171,7 @@ class Processor:
 
             self.user.send_message(text = self.generate_message(), chatid=chatid, userid=userid)
             
-            return
+            return True
 
         if not message_body.startswith(u"буква"):
             return
@@ -181,7 +182,7 @@ class Processor:
         self.save_context(chatid or userid)
         self.user.send_message(text = self.generate_message(), chatid=chatid, userid=userid)
 
-        return
+        return True
 
     def open_word(self,word):
     
