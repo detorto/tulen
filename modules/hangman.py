@@ -7,6 +7,7 @@ import requests
 import io
 import copy
 import yaml
+import threading
 #from utils import *
 
 CONFIG_FILE = "conf.yaml"
@@ -85,6 +86,8 @@ class Processor:
         self.config = yaml.load(open(vkuser.module_file("hangman", CONFIG_FILE)))
         self.user = vkuser    
         self.game_context = {"word":self.load_random_word(), "opened": [], "errors":[], "session_started":False }
+        self.lock = threading.Lock()
+
 
     def load_random_word(self):
         lines = open(self.user.module_file("hangman", self.config["regular_dict"])).readlines()
@@ -149,6 +152,7 @@ class Processor:
 
     def process_message(self, message, chatid, userid):
        
+        self.lock.acquire()
         self.load_context(chatid or userid)
         message_body = message["body"].lower().strip()
 
@@ -157,9 +161,11 @@ class Processor:
             self.save_context(chatid or userid)
         
             self.user.send_message(text = self.generate_message(), chatid=chatid, userid=userid)
+            self.lock.release()
             return True
 
         if not self.game_context["session_started"]:
+                self.lock.release()
                 return
 
         if message_body.startswith(u"слово"):
@@ -170,10 +176,11 @@ class Processor:
             self.save_context(chatid or userid)
 
             self.user.send_message(text = self.generate_message(), chatid=chatid, userid=userid)
-            
+            self.lock.release()
             return True
 
         if not message_body.startswith(u"буква"):
+            self.lock.release()
             return
 
         letter = message_body[len(u"буква"):].strip()[0]
@@ -181,7 +188,7 @@ class Processor:
         self.open_letter(letter)
         self.save_context(chatid or userid)
         self.user.send_message(text = self.generate_message(), chatid=chatid, userid=userid)
-
+        self.lock.release()
         return True
 
     def open_word(self,word):
