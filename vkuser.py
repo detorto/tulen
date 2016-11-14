@@ -27,7 +27,7 @@ class VkUser(object):
             logger.info("Running in test mode")
         else:
             session = vk.Session(access_token=self.config["access_token"]["value"])
-            self.api = vk.API(session,  v='5.50', timeout = 10)
+            self.api = vk.API(session,  v='5.60', timeout = 10)
             logger.info("VK API created")
         
         modules_list_file = self.config.get("enabled_modules_list", None)
