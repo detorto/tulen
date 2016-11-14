@@ -92,7 +92,21 @@ def RateLimited(maxPerSecond):
             return ret
         return rateLimitedFunction
     return decorate
-    
-@RateLimited(3)  # 2 per second at most
+
+from vk.exceptions import VkAPIError 
+@RateLimited(2.5)  # 2 per second at most
 def rated_operation(operation, args):
-	return operation(**args)
+    ret = None
+    while True:
+        try:
+            #print operation.__name__, args
+            return operation(**args)
+        except VkAPIError as e:
+            if e.code == 6:
+                print "------- To many req for sec, throttling", e
+                time.sleep(5)
+                continue
+            else:
+                raise
+        except:
+            raise

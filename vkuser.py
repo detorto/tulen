@@ -27,7 +27,7 @@ class VkUser(object):
             logger.info("Running in test mode")
         else:
             session = vk.Session(access_token=self.config["access_token"]["value"])
-            self.api = vk.API(session,  v='5.50', timeout = 10)
+            self.api = vk.API(session,  v='5.60', timeout = 10)
             logger.info("VK API created")
         
         modules_list_file = self.config.get("enabled_modules_list", None)
@@ -131,7 +131,7 @@ class VkUser(object):
 	
             if thread_work((m, message, chatid, userid)) == True:
                 print "Excl module", m.__class__, "worked"
-		return 
+                return 
  
         self.thread_pool_modules.map_async(thread_work, [(module, message, chatid, userid) for module in self.parallel_modules])
 
@@ -234,7 +234,7 @@ class VkUser(object):
                 args = {"photo":i["photo"], "server":i["server"], "hash":i["hash"]}
 
                 resp = rated_operation(op, args)
-		print "Uload resp:",resp
+                print "Uload resp:",resp
                 attachments.append("photo"+str(resp[0]["owner_id"])+"_"+str(resp[0]["id"]))
             except:
 
@@ -350,7 +350,14 @@ class VkUser(object):
         args = {"user_ids":user_id}
         resp = rated_operation(op,args)
         return resp[0]["friend_status"]
-    
+
+    def getUser(self,userid,fields,name_case):
+        op = self.api.users.get
+        args = {"user_ids":userid,"fields":fields,"name_case":name_case}
+        resp = rated_operation(op,args)
+        return resp[0]
+
+
     def friendAdd(self, user_id ):
         op = self.api.friends.add
         args = {"user_id":user_id}
