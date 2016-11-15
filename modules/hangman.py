@@ -7,6 +7,7 @@ import requests
 import io
 import copy
 import yaml
+import threading
 #from utils import *
 
 CONFIG_FILE = "conf.yaml"
@@ -85,6 +86,8 @@ class Processor:
         self.config = yaml.load(open(vkuser.module_file("hangman", CONFIG_FILE)))
         self.user = vkuser    
         self.game_context = {"word":self.load_random_word(), "opened": [], "errors":[], "session_started":False }
+        self.lock = threading.Lock()
+
 
     def load_random_word(self):
         lines = open(self.user.module_file("hangman", self.config["regular_dict"])).readlines()
@@ -149,40 +152,41 @@ class Processor:
 
     def process_message(self, message, chatid, userid):
        
-        self.load_context(chatid or userid)
-        message_body = message["body"].lower().strip()
+        with self.lock:
+            self.load_context(chatid or userid)
+            message_body = message["body"].lower().strip()
 
-        if message_body.startswith(self.config["react_on"]):
-            self.game_context = {"word" : self.load_random_word(), "opened": [], "errors":[], "session_started" : True }
-            self.save_context(chatid or userid)
-        
-            self.user.send_message(text = self.generate_message(), chatid=chatid, userid=userid)
-            return True
+            if message_body.startswith(self.config["react_on"]):
+                self.game_context = {"word" : self.load_random_word(), "opened": [], "errors":[], "session_started" : True }
+                self.save_context(chatid or userid)
+            
+                self.user.send_message(text = self.generate_message(), chatid=chatid, userid=userid)
+                return True
 
-        if not self.game_context["session_started"]:
+            if not self.game_context["session_started"]:
+                    return
+
+            if message_body.startswith(u"слово"):
+
+                word = message_body[len(u"слово"):].strip();
+
+                self.open_word(word)
+                self.save_context(chatid or userid)
+
+                self.user.send_message(text = self.generate_message(), chatid=chatid, userid=userid)
+                
+                return True
+
+            if not message_body.startswith(u"буква"):
                 return
 
-        if message_body.startswith(u"слово"):
+            letter = message_body[len(u"буква"):].strip()[0]
 
-            word = message_body[len(u"слово"):].strip();
-
-            self.open_word(word)
+            self.open_letter(letter)
             self.save_context(chatid or userid)
-
             self.user.send_message(text = self.generate_message(), chatid=chatid, userid=userid)
-            
+
             return True
-
-        if not message_body.startswith(u"буква"):
-            return
-
-        letter = message_body[len(u"буква"):].strip()[0]
-
-        self.open_letter(letter)
-        self.save_context(chatid or userid)
-        self.user.send_message(text = self.generate_message(), chatid=chatid, userid=userid)
-
-        return True
 
     def open_word(self,word):
     
