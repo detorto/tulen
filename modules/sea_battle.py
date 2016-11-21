@@ -25,12 +25,12 @@ class Processor:
             return False
 
     def start_game_session(self):
-        pass
+        self.game_manager.start_game_session()
 
     @sbp.need_registration
     @sbp.need_valid_context
     def stop_game_session(self):
-        pass
+        self.game_manager.stop_game_session()
 
     def handler(self, message):
         # dummy answer (if nothing fit or session ain't started)
@@ -117,7 +117,7 @@ class Processor:
             return sbp.INVALID_OPPONENT_MSG
 
         # checking if current team (not op_team_name) is also awaited by op_team_name
-        if self.game_manager.opponent_available(op_team_name):
+        if self.game_manager.opponent_available(team_name=op_team_name):
             return sbp.CAN_SHOT_MSG
         else:
             return sbp.WAITING_FOR_OPPONENT_MSG

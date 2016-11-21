@@ -85,13 +85,6 @@ def try_get_data(data, key):
     except:
         return None
 
-def check_null_or_empty(data):
-    if isinstance(data, (int, long)):
-        return data == 0
-    elif isinstance(data, str):
-        return data == ""
-    return data is None
-
 
 class Team:
     def __init__(self, cap_uid, chat_id, team_name, score, field, field_of_shots, shots_left, score_per_hit,
@@ -115,7 +108,7 @@ class Team:
         # self.parse_fields()
 
     def can_play(self):
-        not_ok = check_null_or_empty(self.cap_uid) or check_null_or_empty(self.team_name) or not self.field_parsed
+        not_ok = not self.cap_uid or not self.team_name or not self.field_parsed
         return not not_ok
 
     def parse_fields(self):
@@ -187,6 +180,7 @@ class GameContext:
         self.chat_id = chat_id
         self.max_score = 1
         self.game_started = False
+        self.game_started_dt_str = None
         self.this_team = None
         self.opponent = None
         self.load()
@@ -206,28 +200,37 @@ class GameContext:
         self.opponent = Team.create_team(op_data)
         return True
 
+    def check_winner(self):
+        t_score = self.this_team["score"]
+        op_score = self.opponent["score"]
+        if t_score >= self.max_score:
+            return self.this_team["team_name"]
+        if op_score >= self.max_score:
+            return self.opponent["team_name"]
+        return ""
+
     def load(self):
         try:
             with open("./files/seabattle_context_{}.yaml".format(self.uid), 'r') as stream:
                 data = yaml.load(stream)
                 self.max_score = data["max_score"]
                 self.game_started = data["game_started"]
+                self.game_started_dt_str = data["game_started_datetime"]
                 self.this_team = Team.create_team(data["this_team"])
                 self.opponent = Team.create_team(data["opponent"])
-                # self.game_in_progress = True
         except:
             self.max_score = 1
             self.game_started = False
+            self.game_started_dt_str = None
             self.this_team = None
             self.opponent = None
-            # self.this_team = Team.create_team({""})
-            # self.game_in_progress = False
 
     def save(self):
         print "Saving context for {}".format(self.uid)
         with open('./files/seabattle_context{}.yaml'.format(self.uid), 'w') as outfile:
             data = {"max_score": self.max_score,
                     "game_started": self.game_started,
+                    "game_started_datetime": self.game_started_dt_str,
                     "this_team": Team.try_serialize(self.this_team),
                     "opponent": Team.try_serialize(self.opponent)}
             yaml.dump(data, outfile, default_flow_style=True)
@@ -242,7 +245,7 @@ class GameContext:
 class GameManager:
     def __init__(self):
         self.lock = threading.Lock()
-        self.teams = []
+        self.games = []
         self.active_sessions = []
         self.load()
 
@@ -251,6 +254,8 @@ class GameManager:
         self.chat_id = chat_id
         self.load()
         self.game_context = GameContext(uid, chat_id)
+        if self.game_has_winner() or self.game_context.check_winner():
+            self.stop_game_session()
 
         return self
 
@@ -262,44 +267,59 @@ class GameManager:
         self.game_context.save()
         self.lock.release()
 
-    def update_team_data(self, data):
-        for i, item in enumerate(self.teams):
-            if item["team_name"] == data["team_name"]:
-                item["team_uid"] = data["team_uid"]
-                item["team_chat_id"] = data["team_chat_id"]
-                item["opponent_team_name"] = data["opponent_team_name"]
-                item["opponent_uid"] = data["opponent_uid"]
-                item["opponent_chat_id"] = data["opponent_chat_id"]
-                self.teams[i] = item
+    def update_game_data(self, data):
+        for i, game in enumerate(self.games):
+            if game["team_name"] == data["team_name"]:
+                game["team_uid"] = data["team_uid"]
+                game["team_chat_id"] = data["team_chat_id"]
+                game["opponent_team_name"] = data["opponent_team_name"]
+                game["opponent_uid"] = data["opponent_uid"]
+                game["opponent_chat_id"] = data["opponent_chat_id"]
+                self.games[i] = game
                 return True
-        self.teams.append(data)
+        self.games.append(data)
         return False
 
-    def get_team_data(self, uid=None, chat_id=None, team_name=None):
+    def get_game_data(self, uid=None, chat_id=None, team_name=None, opponent_name=None):
         m_uid = self.uid if uid is None else uid
         m_chat_id = self.chat_id if chat_id is None else chat_id
-        for team in self.teams:
+        for game in self.games:
             if team_name is not None:
-                if team["team_name"] == team_name:
-                    return team
-            elif team["team_uid"] == m_uid and team["team_chat_id"] == m_chat_id:
-                return team
+                if opponent_name is not None:
+                    if game["team_name"] == team_name and game["opponent_team_name"] == opponent_name:
+                        return game
+                if game["team_name"] == team_name:
+                    return game
+            elif game["team_uid"] == m_uid and game["team_chat_id"] == m_chat_id:
+                return game
         return None
+
+    def game_has_winner(self):
+        gc = self.game_context
+        game = self.get_game_data(None, None, gc.this_team["team_name"], gc.opponent["team_name"])
+        winner = game["winner"]
+        if not winner:
+            return ""
+        if winner != gc.this_team["team_name"] or winner != gc.opponent["team_name"]:
+            print "Warning! game_has_winner: Somehow winner is not from this game! " \
+                  "Check!!! t_team {}, op_team {}, winner {}"\
+                .format(gc.this_team["team_name"], gc.opponent["team_name"], winner)
+        return winner
 
     def load(self):
         try:
             with open("./files/seabattle_game.yaml", 'r') as stream:
                 data = yaml.load(stream)
-                self.teams = data["teams"]
+                self.games = data["games"]
                 self.active_sessions = data["active_sessions"]
         except Exception as e:
-            self.teams = []
+            self.games = []
             self.active_sessions = []
             print e.message
 
     def save(self):
         with open('./files/seabattle_game.yaml', 'w') as outfile:
-            data = {"teams": self.teams, "active_sessions": self.active_sessions}
+            data = {"games": self.games, "active_sessions": self.active_sessions}
             yaml.dump(data, outfile, default_flow_style=True)
 
     def session_is_active(self):
@@ -309,8 +329,9 @@ class GameManager:
         try:
             for session in self.active_sessions:
                 active = session["session_uid"] == self.uid
-                if active and session["session_chat_id"] is not None:
+                if active and self.chat_id is not None:
                     active = session["session_chat_id"] == self.chat_id
+                    break
                 if active:
                     break
         except Exception as e:
@@ -320,30 +341,76 @@ class GameManager:
 
     def start_game_session(self):
         if self.session_is_active():
-            return SESSION_ALREADY_ACTIVE.format(self.uid, self.chat_id)
+            print SESSION_ALREADY_ACTIVE.format(self.uid, self.chat_id)
+            return False
         self.active_sessions.append({"session_uid": self.uid,
                                      "session_chat_id": self.chat_id,
                                      "session_started": datetime.now().strftime("%d.%m.%Y %H:%M:%S")})
-        return SESSION_STARTED.format(self.uid, self.chat_id)
+        print SESSION_STARTED.format(self.uid, self.chat_id)
+        return True
 
     def stop_game_session(self):
         if not self.session_is_active():
             # эта строка не должна вызываться, поскольку если сессии нету - команды морского боя не обрабатываются
-            return SESSION_NOT_ACTIVE.format(self.uid, self.chat_id)
+            print SESSION_NOT_ACTIVE.format(self.uid, self.chat_id)
+            return False
         if self.game_context.game_started:
+            gc = self.game_context
+            winner_team = gc.check_winner()
+            if not winner_team:
+                # no player yet achieved max_score
+                winner_team = self.game_has_winner()
+                # checking if another team at it's session already wrote down the winner
+                if not winner_team:
+                    # if it's not, then this team has stopped the game and the winner is opponent!
+                    winner_team = gc.opponent["team_name"]
+                    looser_team = gc.this_team["team_name"]
+                    winner_score = gc.opponent["score"]
+                    looser_score = gc.this_team["score"]
+                    game_started = gc.game_started_dt_str
+                    game_finished = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+                    file_name = "./files/{}_vs_{}_{}.yaml".format(winner_team, looser_team, game_finished)
+                    try:
+                        with open(file_name, 'w') as outfile:
+                            data = {"winner": winner_team,
+                                    "looser": looser_team,
+                                    "winner_score": winner_score,
+                                    "looser_score": looser_score,
+                                    "game_started": game_started,
+                                    "game_finished": game_finished}
+                            yaml.dump(data, outfile, default_flow_style=True)
+                    except Exception as e:
+                        print "Exception occured while saving game results for (winner {}, looser {}) - {}"\
+                            .format(winner_team, looser_team, e.message)
+
+                    # TODO: delete context file and game data from seabattle_game before return!!!
+                    return True
+                else:
+                    pass
+                    # TODO: tell user, that opponent has finished the game and this team is a winner (apparently)
+                    # TODO: delete context file and game data from seabattle_game before return!!!
+            else:
+                pass
+                # TODO: we have a winner by scores! And we have to check it earlier, actually...
+                # TODO: delete context file and game data from seabattle_game before return!!!
+        else:
             pass
+            # TODO: game ain't started - we can safely delete all data and tell user, that session is successfully finished
+            # TODO: delete context file and game data from seabattle_game before return!!!
+
+
             # если какой-то игрок покинул игру до окончания игры (score < max_score), победа присуждается другому игроку
             # сохраняем в файлик {this_team_name}_vs_{opponent_team_name}_{datetime.now()}.yaml
-            # После чего, удаляем seabattle_context_{cap_uid}.yaml, удаляем только this_team из self.teams,
+            # После чего, удаляем seabattle_context_{cap_uid}.yaml, удаляем только this_team из self.games,
             # удаляем текущую сессию из self.active_sessions
             # Сохраняемся.
             # если игра не началась ещё - делаем всё то же самое, но ничего не сохраняем
 
     def is_team_registered(self, team_name):
-        return self.get_team_data(None, None, team_name) is not None
+        return self.get_game_data(None, None, team_name=team_name) is not None
 
     def is_user_registered(self, uid=None, chat_id=None):
-        return self.get_team_data(uid, chat_id) is not None
+        return self.get_game_data(uid=uid, chat_id=chat_id) is not None
 
     # sets opponent by team_name for current team_name
     def set_opponent(self, op_team_name):
@@ -361,24 +428,24 @@ class GameManager:
                                                   op_team_name,
                                                   op_cap_uid,
                                                   op_chat_id)
-        for team in self.teams:
-            if team["team_name"] == op_team_name:
-                op_cap_uid = team["team_uid"]
-                op_chat_id = team["team_chat_id"]
+        for game in self.games:
+            if game["team_name"] == op_team_name:
+                op_cap_uid = game["team_uid"]
+                op_chat_id = game["team_chat_id"]
                 self.game_context.set_opponent(op_team_name,
                                                op_cap_uid,
                                                op_chat_id)
 
                 # updating also game_manager team_data
-                this_team_data = self.get_team_data()
-                if this_team_data is None:
-                    this_team_data = {"team_name": t_team_name,
+                t_game_data = self.get_game_data()
+                if t_game_data is None:
+                    t_game_data = {"team_name": t_team_name,
                                       "team_uid": t_cap_uid,
                                       "team_chat_id": t_chat_id}
-                this_team_data["opponent_team_name"] = op_team_name
-                this_team_data["opponent_uid"] = op_cap_uid
-                this_team_data["opponent_chat_id"] = op_chat_id
-                self.update_team_data(this_team_data)
+                t_game_data["opponent_team_name"] = op_team_name
+                t_game_data["opponent_uid"] = op_cap_uid
+                t_game_data["opponent_chat_id"] = op_chat_id
+                self.update_game_data(t_game_data)
                 return OPPONENT_SET_OK.format(t_team_name,
                                               t_cap_uid,
                                               t_chat_id,
@@ -388,14 +455,15 @@ class GameManager:
         return INVALID_OPPONENT_MSG
 
     def opponent_available(self, team_name=None, op_team_name=None):
-        team_name = self.game_context.this_team["team_name"] if team_name is None else team_name
-        op_team_name = self.game_context.this_team["team_name"] if op_team_name is None else op_team_name
-        team = self.get_team_data(None, None, team_name)
+        gc = self.game_context
+        team_name = gc.this_team["team_name"] if team_name is None else team_name
+        op_team_name = gc.this_team["team_name"] if op_team_name is None else op_team_name
+        team = self.get_game_data(uid=None, chat_id=None, team_name=team_name)
         if team is None:
             print UNKNOWN_TEAM.format(team_name)
             return False
         awaited_opponent = team["opponent_team_name"]
-        if check_null_or_empty(awaited_opponent):
+        if not awaited_opponent:
             print TEAM_NOT_WAITING_FOR_ANY_OPPONENT.format(team_name)
             return False
         if awaited_opponent != op_team_name:
@@ -406,38 +474,38 @@ class GameManager:
     def register_team(self, uid, chat_id, team_name):
         print u"registering sea_battle team {} with captain uid {} and chat_id {}".format(team_name, uid,
                                                                                           chat_id)
-        if check_null_or_empty(team_name):
+        if not team_name:
             return TEAM_NAME_IS_EMPTY
 
         ans = REGISTRATION_OK
         found_opponent = False
 
-        for team in self.teams:
-            if team["team_name"] == team_name:
+        for game in self.games:
+            if game["team_name"] == team_name:
                 return ALREADY_REGISTERED
-            if team["team_uid"] == uid:
+            if game["team_uid"] == uid:
                 return ALREADY_CAPTAIN
             # TODO: check!!!!
-            if team["team_chat_id"] is not None and chat_id is not None and team["team_chat_id"] == chat_id:
+            if game["team_chat_id"] is not None and chat_id is not None and game["team_chat_id"] == chat_id:
                 return ALREADY_CHAT_REGISTERED
 
-            if team["opponent_team_name"] == team_name:
-                if team["opponent_uid"] is not None:
-                    if team["opponent_uid"] != uid:
+            if game["opponent_team_name"] == team_name:
+                if game["opponent_uid"] is not None:
+                    if game["opponent_uid"] != uid:
                         ans = ALREADY_REGISTERED
                     else:
                         ans = ALREADY_CAPTAIN
                 else:
-                    team["opponent_uid"] = uid
-                    team["opponent_chat_id"] = chat_id
+                    game["opponent_uid"] = uid
+                    game["opponent_chat_id"] = chat_id
 
-                ans += "\n" + TEAM_IS_WAITING_FOR_OPPONENT.format(team["team_name"])
+                ans += "\n" + TEAM_IS_WAITING_FOR_OPPONENT.format(game["team_name"])
                 found_opponent = True
-                self.update_team_data(team)
+                self.update_game_data(game)
                 break
 
         if not found_opponent:
-            self.update_team_data({"team_name": team_name,
+            self.update_game_data({"team_name": team_name,
                                    "team_uid": uid,
                                    "team_chat_id": chat_id,
                                    "opponent_team_name": None,
