@@ -9,6 +9,54 @@ logger = logging.getLogger('tulen')
 
 CONFIG_FILE = "conf.yaml"
 
+def need_game_session(f):
+    def wrapper(*args):
+        game_manager = args[0].game_manager
+        if game_manager.session_is_active():
+            return f(*args)
+        else:
+            return
+    return wrapper
+
+def need_registration(f):
+    def wrapper(*args):
+        game_manager = args[0].game_manager
+        if game_manager.is_user_registered():
+            return f(*args)
+        else:
+            return sbp.NOT_REGISTERED_YET_MSG
+    return wrapper
+
+def need_valid_context(f):
+    def wrapper(*args):
+        game_manager = args[0].game_manager
+        game_context = game_manager.game_context
+        if game_context.is_valid():
+            return f(*args)
+        else:
+            return sbp.NO_MAP_YET_MSG
+    return wrapper
+
+def need_valid_map(f):
+    def wrapper(*args):
+        game_manager = args[0].game_manager
+        game_context = game_manager.game_context
+        if game_context.is_valid():
+            return f(*args)
+        else:
+            return sbp.NO_MAP_YET_MSG
+    return wrapper
+
+def need_opponent_set(f):
+    def wrapper(*args):
+        game_manager = args[0].game_manager
+        game_context = game_manager.game_context
+        if game_context.opponent is None:
+            return f(*args)
+        else:
+            return sbp.NO_OPPONENT_SET
+    return wrapper
+
 
 class Processor:
     def __init__(self, vkuser):
@@ -24,13 +72,14 @@ class Processor:
         else:
             return False
 
-    def start_game_session(self):
-        self.game_manager.start_game_session()
+    def start_game_session(self, msg):
+        resp = self.game_manager.start_game_session()
+        if resp:
+            return resp
 
-    @sbp.need_registration
-    @sbp.need_valid_context
-    def stop_game_session(self):
-        self.game_manager.stop_game_session()
+    @need_game_session
+    def stop_game_session(self, msg):
+        return self.game_manager.stop_game_session()
 
     def handler(self, message):
         # dummy answer (if nothing fit or session ain't started)
@@ -38,8 +87,8 @@ class Processor:
             def call():
                 return ""
 
-        if not self.game_manager.session_is_active():
-            return dummy
+        # if not self.game_manager.session_is_active():
+        #     return dummy
 
         # map of request_text - handlers
         mapper = {sbp.start_game_processing_command: self.start_game_session,
@@ -64,19 +113,21 @@ class Processor:
 
         return dummy
 
+    @need_game_session
     def register(self, msg):
         # from forth word
         team_name = "".join(msg.split()[3:]).strip()
         return self.game_manager.register_team(self.game_manager.uid, team_name)
 
-    @sbp.need_registration
-    @sbp.need_valid_context
+    # @sbp.need_valid_context
+    @need_game_session
+    @need_registration
     def questions(self, msg):
         return "\n".join([u"Вопрос {}: {}".format(i, q.keys()[0]) for i, q in enumerate(self.config["questions"])])
 
-    @sbp.need_registration
-    @sbp.need_valid_context
-    @sbp.need_game_started
+    @need_game_session
+    @need_registration
+    @need_valid_context
     def answer(self, msg):
         # parse message as answer
         data = msg.split()[1:]
@@ -100,14 +151,16 @@ class Processor:
         else:
             return sbp.INVALID_ANSWER_TEXT_MSG
 
-    @sbp.need_registration
-    @sbp.need_valid_context
-    @sbp.need_game_started
+    # @sbp.need_valid_map
+    @need_game_session
+    @need_registration
+    @need_valid_context
     def attack(self, msg):
         pass
 
-    @sbp.need_registration
-    @sbp.need_valid_context
+    @need_game_session
+    @need_registration
+    @need_valid_context
     def game_request(self, msg):
         op_team_name = msg.split(sbp.gameRequest_command, 1)[1:][0].strip()
         answer = ""
@@ -122,15 +175,17 @@ class Processor:
         else:
             return sbp.WAITING_FOR_OPPONENT_MSG
 
-    @sbp.need_registration
+    @need_game_session
+    @need_registration
     def load_map(self, msg):
         # from the third word
         field = "".join(msg.split()[2:]).strip()
-        return self.game_manager.set_map(field)
+        return self.game_manager.load_map(field)
 
     def process_message(self, message, chatid, userid):
         msg = message["body"].lower()
 
         with self.game_manager(userid, chatid):
             response_text = self.handler(msg)()
-            self.user.send_message(text=response_text, userid=userid, chatid=chatid)
+            if response_text:
+                self.user.send_message(text=response_text, userid=userid, chatid=chatid)

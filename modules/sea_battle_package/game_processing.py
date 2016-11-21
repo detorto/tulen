@@ -49,7 +49,11 @@ INVALID_OPPONENT_MSG = u"Неизветный противник"
 CAN_SHOT_MSG = u"Могете стрелять, капитан"
 
 NOT_REGISTERED_YET_MSG = u"Для игры в Морской Бой нужно зарегистрироватся. Напишите Я капитан команды ИМЯ_КОММАНДЫ"
-NO_MAP_YET_MSG = u"Нужно загрузить карту"
+NO_MAP_YET_MSG = u"Нужно загрузить карту. Напишите Загрузи карту [МАССИВ_КАРТЫ]\n" \
+                 u"Подсказка: размер массива - 100 чисел подряд через пробел, число 0 - пустое место, числа 1-4 - корабли"
+NO_OPPONENT_SET = u"Для игры нужно выбрать противника. Напишите Играю в морской бой с ИМЯ_КОМАНДЫ_ОППОНЕНТА"
+NO_ANSWER_PROVIDED_MSG = u"Для выстрела нужно ответить на вопрос. Напишите Ответ на вопрос НОМЕР_ВОПРОСА: СЛОВО_ИЛИ_ЦИФРА"
+
 ALREADY_REGISTERED = u"Уже зарегистрированы"
 ALREADY_CAPTAIN = u"Вы уже являетесь капитаном"
 ALREADY_CHAT_REGISTERED = u"Из этого чата уже ведется игра"
@@ -68,6 +72,7 @@ MAP_ALREADY_UPLOADED = u"Карта уже загружена"
 SESSION_ALREADY_ACTIVE = u"Сессия игры уже активна для uid {}, chat_id {}"
 SESSION_STARTED = u"Сессия игры Морской Бой начата для uid {}, chat_id {}"
 SESSION_NOT_ACTIVE = u"Сессия не активна для uid {}, chat_id {}"
+SESSION_STOPPED = u"Сессия игры Морксой бой остановлена для uid {}"
 
 # commands  ===================================================================
 start_game_processing_command = u"тюлень, хотим в морской бой"
@@ -79,6 +84,25 @@ questions_command = u"вопросы"
 loadMap_command = u"загрузи карту"
 registerTeam_command = u"я капитан команды"
 
+def need_game_session(f):
+    def wrapper(*args):
+        game_manager = args[0]
+        if game_manager.session_is_active():
+            return f(*args)
+        else:
+            return
+    return wrapper
+
+def need_game_started(f):
+    def wrapper(*args):
+        game_context = args[0]
+        if isinstance(game_context, GameManager):
+            game_context = game_context.game_context
+        if game_context.game_started:
+            return f(*args)
+        else:
+            return
+    return wrapper
 
 def try_get_data(data, key):
     try:
@@ -201,6 +225,7 @@ class GameContext:
         self.opponent = Team.create_team(op_data)
         return True
 
+    @need_game_started
     def check_winner(self):
         t_score = self.this_team["score"]
         op_score = self.opponent["score"]
@@ -255,7 +280,7 @@ class GameManager:
         self.chat_id = chat_id
         self.load()
         self.game_context = GameContext(uid, chat_id)
-        if self.game_has_winner() or self.game_context.check_winner():
+        if self.check_winner():
             self.stop_game_session()
 
         return self
@@ -267,6 +292,10 @@ class GameManager:
         self.save()
         self.game_context.save()
         self.lock.release()
+
+    def load_map(self, field):
+        self.game_context.this_team.field = field
+        return self.game_context.this_team.parse_fields()
 
     def update_game_data(self, data):
         for i, game in enumerate(self.games):
@@ -303,6 +332,11 @@ class GameManager:
                 return game
         return None
 
+    @need_game_session
+    def check_winner(self):
+        return self.game_has_winner() or self.game_context.check_winner()
+
+    @need_game_started
     def game_has_winner(self):
         gc = self.game_context
         game = self.get_game_data(team_name=gc.this_team["team_name"], opponent_name=gc.opponent["team_name"])
@@ -332,17 +366,20 @@ class GameManager:
             yaml.dump(data, outfile, default_flow_style=True)
 
     def session_is_active(self):
-        if self.uid is None or len(self.active_sessions) == 0:
+        if not self.uid or len(self.active_sessions) == 0:
             return False
         active = False
         try:
             for session in self.active_sessions:
-                active = session["session_uid"] == self.uid
-                if active and self.chat_id is not None:
-                    active = session["session_chat_id"] == self.chat_id
+                if session["session_uid"] == self.uid:
+                    active = True
                     break
-                if active:
-                    break
+                # active = session["session_uid"] == self.uid
+                # if active and self.chat_id is not None:
+                #     active = session["session_chat_id"] == self.chat_id
+                #     break
+                # if active:
+                #     break
         except Exception as e:
             print "Exception occurred while checking session - {}".format(e.message)
             active = False
@@ -350,19 +387,26 @@ class GameManager:
 
     def start_game_session(self):
         if self.session_is_active():
-            print SESSION_ALREADY_ACTIVE.format(self.uid, self.chat_id)
-            return False
+            msg = SESSION_ALREADY_ACTIVE.format(self.uid, self.chat_id)
+            print msg
+            return msg
         self.active_sessions.append({"session_uid": self.uid,
                                      "session_chat_id": self.chat_id,
                                      "session_started": datetime.now().strftime("%d.%m.%Y %H:%M:%S")})
-        print SESSION_STARTED.format(self.uid, self.chat_id)
-        return True
+        msg = SESSION_STARTED.format(self.uid, self.chat_id)
+        print msg
+        return msg
 
     def stop_game_session(self):
         if not self.session_is_active():
             # эта строка не должна вызываться, поскольку если сессии нету - команды морского боя не обрабатываются
             print SESSION_NOT_ACTIVE.format(self.uid, self.chat_id)
             return False
+
+        self.active_sessions = [session for session in self.active_sessions if session["session_uid"] != self.uid]
+        return SESSION_STOPPED.format(self.uid)
+        # TODO: tmp - debug
+
         if self.game_context.game_started:
             gc = self.game_context
             winner_team = gc.check_winner()
@@ -528,83 +572,3 @@ class GameManager:
                                    "opponent_uid": None,
                                    "opponent_chat_id": None})
         return ans
-
-        # def score_answer(self, q_number):
-        #     pass
-        #     # print "Scored answer {}".format(q_number)
-        #     # self.scores.append(q_number)
-        #
-        # def score_hit(self, coords):
-        #     pass
-        #
-        # def map_text(self):
-        #     txt = ""
-        #     for i in range(MAP_SIZE):
-        #         for j in range(MAP_SIZE):
-        #             txt += self.field[j + i * MAP_SIZE]
-        #         txt += "\n"
-        #     return txt
-        #
-        # def is_map_valid(self, data):
-        #     pass
-        # if data and len(data) == MAP_SIZE * MAP_SIZE:
-        #     return True
-        # else:
-        #     return False
-
-        # def set_map(self, data):
-        #     if self.game_in_progress:
-        #         return MAP_ALREADY_UPLOADED
-        #     try:
-        #         self.field = []
-        #         for i in range(MAP_SIZE):
-        #             for j in range(MAP_SIZE):
-        #                 self.field.append(data[j + i * MAP_SIZE])
-        #                 self.fieldM[i][j] = data[j + i * MAP_SIZE]
-        #
-        #         if self.is_map_valid(self.field):
-        #             return GOOD_MAP + u"\n" + self.map_text()
-        #         else:
-        #             return INVALID_MAP
-        #     except:
-        #         return INVALID_MAP
-
-
-def need_registration(f):
-    def wrapper(*args):
-        game_manager = args[0].game_manager
-        if game_manager.is_user_registered():
-            return f(*args)
-        else:
-            return NOT_REGISTERED_YET_MSG
-    return wrapper
-
-def need_valid_context(f):
-    def wrapper(*args):
-        game_manager = args[0].game_manager
-        game_context = game_manager.game_context
-        if game_context.is_valid():
-            return f(*args)
-        else:
-            return NO_MAP_YET_MSG
-    return wrapper
-
-def need_valid_map(f):
-    def wrapper(*args):
-        game_manager = args[0].game_manager
-        game_context = game_manager.game_context
-        if game_context.is_valid():
-            return f(*args)
-        else:
-            return NO_MAP_YET_MSG
-    return wrapper
-
-def need_game_started(f):
-    def wrapper(*args):
-        game_manager = args[0].game_manager
-        game_context = game_manager.game_context
-        if game_context.game_started:
-            return f(*args)
-        else:
-            return NO_MAP_YET_MSG
-    return wrapper
