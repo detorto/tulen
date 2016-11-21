@@ -5,6 +5,7 @@ import yaml
 import threading
 import ship_processing as sp
 from datetime import datetime
+import os
 
 # TODO: can this be different??
 MAP_SIZE = 10
@@ -280,6 +281,14 @@ class GameManager:
         self.games.append(data)
         return False
 
+    def remove_game_data(self, uid=None, chat_id=None, team_name=None, opponent_name=None):
+        game = self.get_game_data(uid, chat_id, team_name, opponent_name)
+        if game:
+            # TODO: check!!!
+            self.games.remove(game)
+            return True
+        return False
+
     def get_game_data(self, uid=None, chat_id=None, team_name=None, opponent_name=None):
         m_uid = self.uid if uid is None else uid
         m_chat_id = self.chat_id if chat_id is None else chat_id
@@ -296,7 +305,7 @@ class GameManager:
 
     def game_has_winner(self):
         gc = self.game_context
-        game = self.get_game_data(None, None, gc.this_team["team_name"], gc.opponent["team_name"])
+        game = self.get_game_data(team_name=gc.this_team["team_name"], opponent_name=gc.opponent["team_name"])
         winner = game["winner"]
         if not winner:
             return ""
@@ -383,9 +392,16 @@ class GameManager:
                         print "Exception occured while saving game results for (winner {}, looser {}) - {}"\
                             .format(winner_team, looser_team, e.message)
 
+                    try:
+                        os.remove("./files/seabattle_context{}.yaml".format(gc.uid))
+                    except Exception as e:
+                        print e.message
                     # TODO: delete context file and game data from seabattle_game before return!!!
+                    if not self.remove_game_data(team_name=looser_team, opponent_name=winner_team):
+                        print "Warning: was unable to remove game data from storage - check!!!"
                     return True
                 else:
+                    game = self.get_game_data(team_name=winner_team)
                     pass
                     # TODO: tell user, that opponent has finished the game and this team is a winner (apparently)
                     # TODO: delete context file and game data from seabattle_game before return!!!
@@ -407,7 +423,7 @@ class GameManager:
             # если игра не началась ещё - делаем всё то же самое, но ничего не сохраняем
 
     def is_team_registered(self, team_name):
-        return self.get_game_data(None, None, team_name=team_name) is not None
+        return self.get_game_data(team_name=team_name) is not None
 
     def is_user_registered(self, uid=None, chat_id=None):
         return self.get_game_data(uid=uid, chat_id=chat_id) is not None
