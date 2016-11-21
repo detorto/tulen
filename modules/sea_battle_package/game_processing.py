@@ -56,22 +56,22 @@ NO_ANSWER_PROVIDED_MSG = u"Для выстрела нужно ответить �
 
 ALREADY_REGISTERED = u"Уже зарегистрированы"
 ALREADY_CAPTAIN = u"Вы уже являетесь капитаном"
-ALREADY_CHAT_REGISTERED = u"Из этого чата уже ведется игра"
+# ALREADY_CHAT_REGISTERED = u"Из этого чата уже ведется игра"
 TEAM_IS_WAITING_FOR_OPPONENT = u"Команда {} уже ожидает вас!"
 TEAM_NOT_WAITING_FOR_ANY_OPPONENT = u"Команда {} не ожидает никаких оппонентов"
 TEAM_NOT_WAITING_FOR_OPPONENT = u"Команда {} не ожидает оппонента {}, но ожидает {}"
 TEAM_NAME_IS_EMPTY = u"Не могу зарегистрировать команду без имени!"
 REGISTRATION_OK = u"Норм все, давай дальше"
-OPPONENT_IS_ALREADY_SET = u"У команды (team_name {}, team_uid {}, team_chat_id {}) уже есть оппонент (team_name {}, team_uid {}, team_chat_id {})"
-OPPONENT_SET_OK = u"Команде (team_name {}, team_uid {}, team_chat_id {}) успешно выставлен оппонент (team_name {}, team_uid {}, team_chat_id {})"
+OPPONENT_IS_ALREADY_SET = u"У команды (team_name {}, team_uid {}) уже есть оппонент (team_name {}, team_uid {})"
+OPPONENT_SET_OK = u"Команде (team_name {}, team_uid {}) успешно выставлен оппонент (team_name {}, team_uid {})"
 
 INVALID_MAP = u"Неверная карта"
 GOOD_MAP = u"Карта загружена"
 MAP_ALREADY_UPLOADED = u"Карта уже загружена"
 
-SESSION_ALREADY_ACTIVE = u"Сессия игры уже активна для uid {}, chat_id {}"
-SESSION_STARTED = u"Сессия игры Морской Бой начата для uid {}, chat_id {}"
-SESSION_NOT_ACTIVE = u"Сессия не активна для uid {}, chat_id {}"
+SESSION_ALREADY_ACTIVE = u"Сессия игры уже активна для uid {}"
+SESSION_STARTED = u"Сессия игры Морской Бой начата для uid {}"
+SESSION_NOT_ACTIVE = u"Сессия не активна для uid {}"
 SESSION_STOPPED = u"Сессия игры Морксой бой остановлена для uid {}"
 
 # commands  ===================================================================
@@ -112,10 +112,9 @@ def try_get_data(data, key):
 
 
 class Team:
-    def __init__(self, cap_uid, chat_id, team_name, score, field, field_of_shots, shots_left, score_per_hit,
+    def __init__(self, cap_uid, team_name, score, field, field_of_shots, shots_left, score_per_hit,
                  answered_questions):
         self.cap_uid = cap_uid
-        self.chat_id = chat_id
         self.team_name = team_name
         self.score = score
         self.field = field
@@ -160,8 +159,8 @@ class Team:
             self.field_parsed = True
             return "OK"
         except Exception as e:
-            print "Exception occurred while parsing field for (cap_uid {}, chat_id {}, team_name {}) - {}" \
-                .format(self.cap_uid, self.chat_id, self.team_name, e.message)
+            print "Exception occurred while parsing field for (cap_uid {}, team_name {}) - {}" \
+                .format(self.cap_uid, self.team_name, e.message)
             return e.message
 
     @classmethod
@@ -175,7 +174,6 @@ class Team:
 
     def serialize(self):
         return {"cap_uid": self.cap_uid,
-                "chat_id": self.chat_id,
                 "team_name": self.team_name,
                 "score": self.score,
                 "field": self.field,
@@ -189,7 +187,6 @@ class Team:
         if data is None:
             return None
         return cls(try_get_data(data, "cap_uid"),
-                   try_get_data(data, "chat_id"),
                    try_get_data(data, "team_name"),
                    try_get_data(data, "score"),
                    try_get_data(data, "field"),
@@ -200,9 +197,8 @@ class Team:
 
 
 class GameContext:
-    def __init__(self, uid, chat_id):
+    def __init__(self, uid):
         self.uid = uid
-        self.chat_id = chat_id
         self.max_score = 1
         self.game_started = False
         self.game_started_dt_str = None
@@ -210,11 +206,10 @@ class GameContext:
         self.opponent = None
         self.load()
 
-    def set_opponent(self, team_name, team_uid, team_chat_id):
+    def set_opponent(self, team_name, team_uid):
         if self.opponent is not None:
             return False
         op_data = {"cap_uid": team_uid,
-                   "chat_id": team_chat_id,
                    "team_name": team_name,
                    "score": 0,
                    "field": [],
@@ -275,11 +270,10 @@ class GameManager:
         self.active_sessions = []
         self.load()
 
-    def __call__(self, uid, chat_id):
+    def __call__(self, uid):
         self.uid = uid
-        self.chat_id = chat_id
         self.load()
-        self.game_context = GameContext(uid, chat_id)
+        self.game_context = GameContext(uid)
         if self.check_winner():
             self.stop_game_session()
 
@@ -301,26 +295,23 @@ class GameManager:
         for i, game in enumerate(self.games):
             if game["team_name"] == data["team_name"]:
                 game["team_uid"] = data["team_uid"]
-                game["team_chat_id"] = data["team_chat_id"]
                 game["opponent_team_name"] = data["opponent_team_name"]
                 game["opponent_uid"] = data["opponent_uid"]
-                game["opponent_chat_id"] = data["opponent_chat_id"]
                 self.games[i] = game
                 return True
         self.games.append(data)
         return False
 
-    def remove_game_data(self, uid=None, chat_id=None, team_name=None, opponent_name=None):
-        game = self.get_game_data(uid, chat_id, team_name, opponent_name)
+    def remove_game_data(self, uid=None, team_name=None, opponent_name=None):
+        game = self.get_game_data(uid, team_name, opponent_name)
         if game:
             # TODO: check!!!
             self.games.remove(game)
             return True
         return False
 
-    def get_game_data(self, uid=None, chat_id=None, team_name=None, opponent_name=None):
+    def get_game_data(self, uid=None, team_name=None, opponent_name=None):
         m_uid = self.uid if uid is None else uid
-        m_chat_id = self.chat_id if chat_id is None else chat_id
         for game in self.games:
             if team_name is not None:
                 if opponent_name is not None:
@@ -328,7 +319,7 @@ class GameManager:
                         return game
                 if game["team_name"] == team_name:
                     return game
-            elif game["team_uid"] == m_uid and game["team_chat_id"] == m_chat_id:
+            elif game["team_uid"] == m_uid:
                 return game
         return None
 
@@ -374,12 +365,6 @@ class GameManager:
                 if session["session_uid"] == self.uid:
                     active = True
                     break
-                # active = session["session_uid"] == self.uid
-                # if active and self.chat_id is not None:
-                #     active = session["session_chat_id"] == self.chat_id
-                #     break
-                # if active:
-                #     break
         except Exception as e:
             print "Exception occurred while checking session - {}".format(e.message)
             active = False
@@ -387,20 +372,19 @@ class GameManager:
 
     def start_game_session(self):
         if self.session_is_active():
-            msg = SESSION_ALREADY_ACTIVE.format(self.uid, self.chat_id)
+            msg = SESSION_ALREADY_ACTIVE.format(self.uid)
             print msg
             return msg
         self.active_sessions.append({"session_uid": self.uid,
-                                     "session_chat_id": self.chat_id,
                                      "session_started": datetime.now().strftime("%d.%m.%Y %H:%M:%S")})
-        msg = SESSION_STARTED.format(self.uid, self.chat_id)
+        msg = SESSION_STARTED.format(self.uid)
         print msg
         return msg
 
     def stop_game_session(self):
         if not self.session_is_active():
             # эта строка не должна вызываться, поскольку если сессии нету - команды морского боя не обрабатываются
-            print SESSION_NOT_ACTIVE.format(self.uid, self.chat_id)
+            print SESSION_NOT_ACTIVE.format(self.uid)
             return False
 
         self.active_sessions = [session for session in self.active_sessions if session["session_uid"] != self.uid]
@@ -469,56 +453,46 @@ class GameManager:
     def is_team_registered(self, team_name):
         return self.get_game_data(team_name=team_name) is not None
 
-    def is_user_registered(self, uid=None, chat_id=None):
-        return self.get_game_data(uid=uid, chat_id=chat_id) is not None
+    def is_user_registered(self, uid=None):
+        return self.get_game_data(uid=uid) is not None
 
     # sets opponent by team_name for current team_name
     def set_opponent(self, op_team_name):
         gc = self.game_context
         t_team_name = gc.this_team["team_name"]
         t_cap_uid = gc.this_team["cap_uid"]
-        t_chat_id = gc.this_team["chat_id"]
         if gc.opponent is not None:
             op_team_name = gc.opponent["team_name"]
             op_cap_uid = gc.opponent["cap_uid"]
-            op_chat_id = gc.opponent["chat_id"]
             return OPPONENT_IS_ALREADY_SET.format(t_team_name,
                                                   t_cap_uid,
-                                                  t_chat_id,
                                                   op_team_name,
-                                                  op_cap_uid,
-                                                  op_chat_id)
+                                                  op_cap_uid)
         for game in self.games:
             if game["team_name"] == op_team_name:
                 op_cap_uid = game["team_uid"]
-                op_chat_id = game["team_chat_id"]
                 self.game_context.set_opponent(op_team_name,
-                                               op_cap_uid,
-                                               op_chat_id)
+                                               op_cap_uid)
 
                 # updating also game_manager team_data
                 t_game_data = self.get_game_data()
                 if t_game_data is None:
                     t_game_data = {"team_name": t_team_name,
-                                      "team_uid": t_cap_uid,
-                                      "team_chat_id": t_chat_id}
+                                   "team_uid": t_cap_uid}
                 t_game_data["opponent_team_name"] = op_team_name
                 t_game_data["opponent_uid"] = op_cap_uid
-                t_game_data["opponent_chat_id"] = op_chat_id
                 self.update_game_data(t_game_data)
                 return OPPONENT_SET_OK.format(t_team_name,
                                               t_cap_uid,
-                                              t_chat_id,
                                               op_team_name,
-                                              op_cap_uid,
-                                              op_chat_id)
+                                              op_cap_uid)
         return INVALID_OPPONENT_MSG
 
     def opponent_available(self, team_name=None, op_team_name=None):
         gc = self.game_context
         team_name = gc.this_team["team_name"] if team_name is None else team_name
         op_team_name = gc.this_team["team_name"] if op_team_name is None else op_team_name
-        team = self.get_game_data(uid=None, chat_id=None, team_name=team_name)
+        team = self.get_game_data(uid=None, team_name=team_name)
         if team is None:
             print UNKNOWN_TEAM.format(team_name)
             return False
@@ -531,9 +505,8 @@ class GameManager:
             return False
         return True
 
-    def register_team(self, uid, chat_id, team_name):
-        print u"registering sea_battle team {} with captain uid {} and chat_id {}".format(team_name, uid,
-                                                                                          chat_id)
+    def register_team(self, uid, team_name):
+        print u"registering sea_battle team {} with captain uid {}".format(team_name, uid)
         if not team_name:
             return TEAM_NAME_IS_EMPTY
 
@@ -546,8 +519,6 @@ class GameManager:
             if game["team_uid"] == uid:
                 return ALREADY_CAPTAIN
             # TODO: check!!!!
-            if game["team_chat_id"] is not None and chat_id is not None and game["team_chat_id"] == chat_id:
-                return ALREADY_CHAT_REGISTERED
 
             if game["opponent_team_name"] == team_name:
                 if game["opponent_uid"] is not None:
@@ -557,7 +528,6 @@ class GameManager:
                         ans = ALREADY_CAPTAIN
                 else:
                     game["opponent_uid"] = uid
-                    game["opponent_chat_id"] = chat_id
 
                 ans += "\n" + TEAM_IS_WAITING_FOR_OPPONENT.format(game["team_name"])
                 found_opponent = True
@@ -567,8 +537,6 @@ class GameManager:
         if not found_opponent:
             self.update_game_data({"team_name": team_name,
                                    "team_uid": uid,
-                                   "team_chat_id": chat_id,
                                    "opponent_team_name": None,
-                                   "opponent_uid": None,
-                                   "opponent_chat_id": None})
+                                   "opponent_uid": None})
         return ans

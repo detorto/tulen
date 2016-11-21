@@ -185,7 +185,10 @@ class Processor:
     def process_message(self, message, chatid, userid):
         msg = message["body"].lower()
 
-        with self.game_manager(userid, chatid):
+        with self.game_manager(userid):
             response_text = self.handler(msg)()
             if response_text:
-                self.user.send_message(text=response_text, userid=userid, chatid=chatid)
+                if chatid:
+                    self.user.send_message(text=response_text, userid=None, chatid=chatid)
+                else:
+                    self.user.send_message(text=response_text, userid=userid, chatid=chatid)
