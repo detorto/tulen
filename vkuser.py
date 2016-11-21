@@ -109,10 +109,10 @@ class VkUser(object):
         logger.debug("Processing msg {}".format(str(message)))
 
         chatid = message.get("chat_id", None)
-        userid = message.get("user_id", None)
+        userid = None
 
-        # if not chatid:
-        #     userid = message.get("user_id", None)
+        if not chatid:
+            userid = message.get("user_id", None)
 
         def thread_work(data):
             try:

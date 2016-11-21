@@ -9,6 +9,7 @@ logger = logging.getLogger('tulen')
 
 CONFIG_FILE = "conf.yaml"
 
+
 def need_game_session(f):
     def wrapper(*args):
         game_manager = args[0].game_manager
@@ -16,7 +17,9 @@ def need_game_session(f):
             return f(*args)
         else:
             return
+
     return wrapper
+
 
 def need_registration(f):
     def wrapper(*args):
@@ -25,7 +28,9 @@ def need_registration(f):
             return f(*args)
         else:
             return sbp.NOT_REGISTERED_YET_MSG
+
     return wrapper
+
 
 def need_valid_context(f):
     def wrapper(*args):
@@ -35,7 +40,9 @@ def need_valid_context(f):
             return f(*args)
         else:
             return sbp.NO_MAP_YET_MSG
+
     return wrapper
+
 
 def need_valid_map(f):
     def wrapper(*args):
@@ -45,7 +52,9 @@ def need_valid_map(f):
             return f(*args)
         else:
             return sbp.NO_MAP_YET_MSG
+
     return wrapper
+
 
 def need_opponent_set(f):
     def wrapper(*args):
@@ -55,6 +64,7 @@ def need_opponent_set(f):
             return f(*args)
         else:
             return sbp.NO_OPPONENT_SET
+
     return wrapper
 
 
@@ -87,9 +97,6 @@ class Processor:
             def call():
                 return ""
 
-        # if not self.game_manager.session_is_active():
-        #     return dummy
-
         # map of request_text - handlers
         mapper = {sbp.start_game_processing_command: self.start_game_session,
                   sbp.stop_game_processing_command: self.stop_game_session,
@@ -104,6 +111,7 @@ class Processor:
         def wrapper(funk, msg):
             def call():
                 return funk(msg)
+
             return call
 
         # return necessary method
@@ -123,11 +131,11 @@ class Processor:
     @need_game_session
     @need_registration
     def questions(self, msg):
-        return "\n".join([u"Вопрос {}: {}".format(i, q.keys()[0]) for i, q in enumerate(self.config["questions"])])
+        return "\n".join([u"Вопрос {}: {}".format(i + 1, q.keys()[0]) for i, q in enumerate(self.config["questions"])])
 
     @need_game_session
     @need_registration
-    @need_valid_context
+    # @need_valid_context       -- TODO: TMP!!!
     def answer(self, msg):
         # parse message as answer
         data = msg.split()[1:]
@@ -143,13 +151,7 @@ class Processor:
         if q_number < 1 or q_number > len(self.config["questions"]):
             return sbp.INVALID_ANSWER_NUMBER_MSG
 
-        # check answer
-        # -1 for user-friendly
-        if self.is_answer_correct(q_answer, q_number - 1):
-            # self.game_context.score_answer(q_number)
-            return sbp.CORRECT_ANSWER_MSG
-        else:
-            return sbp.INVALID_ANSWER_TEXT_MSG
+        return self.game_manager.question_answered(q_number - 1, self.is_answer_correct(q_answer, q_number - 1))
 
     # @sbp.need_valid_map
     @need_game_session
@@ -185,10 +187,11 @@ class Processor:
     def process_message(self, message, chatid, userid):
         msg = message["body"].lower()
 
-        with self.game_manager(userid):
+        user_id = userid
+        if not user_id:
+            user_id = message["user_id"]
+
+        with self.game_manager(user_id):
             response_text = self.handler(msg)()
             if response_text:
-                if chatid:
-                    self.user.send_message(text=response_text, userid=None, chatid=chatid)
-                else:
-                    self.user.send_message(text=response_text, userid=userid, chatid=chatid)
+                self.user.send_message(text=response_text, userid=userid, chatid=chatid)

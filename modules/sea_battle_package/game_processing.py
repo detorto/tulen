@@ -39,9 +39,10 @@ TMP_TULEN_MAP = """
 # answers  ====================================================================
 INVALID_ANSWER_FORMAT_MSG = u"Неправильный формат ответа"
 INVALID_ANSWER_NUMBER_MSG = u"Неправильный номер ответа"
-INVALID_ANSWER_TEXT_MSG = u"Неверный ответ!"
+INVALID_ANSWER_TEXT_MSG = u"Неверный ответ! Можете стрелять, но баллов вам не положено"
+QUESTION_ALREADY_ANSWERED = u"Вы уже отвечали на вопрос {}"
 
-CORRECT_ANSWER_MSG = u"Ответ верен!"
+CORRECT_ANSWER_MSG = u"Ответ верен! Можете стрелять! За попадание получите {} очков"
 WAITING_FOR_OPPONENT_MSG = u"Ждем оппонета"
 
 UNKNOWN_TEAM = u"Неизвестная команда {}"
@@ -52,9 +53,9 @@ NOT_REGISTERED_YET_MSG = u"Для игры в Морской Бой нужно �
 NO_MAP_YET_MSG = u"Нужно загрузить карту. Напишите Загрузи карту [МАССИВ_КАРТЫ]\n" \
                  u"Подсказка: размер массива - 100 чисел подряд через пробел, число 0 - пустое место, числа 1-4 - корабли"
 NO_OPPONENT_SET = u"Для игры нужно выбрать противника. Напишите Играю в морской бой с ИМЯ_КОМАНДЫ_ОППОНЕНТА"
-NO_ANSWER_PROVIDED_MSG = u"Для выстрела нужно ответить на вопрос. Напишите Ответ на вопрос НОМЕР_ВОПРОСА: СЛОВО_ИЛИ_ЦИФРА"
+NO_ANSWER_PROVIDED_MSG = u"Для выстрела нужно ответить на вопрос. Напишите Ответ НОМЕР_ВОПРОСА СЛОВО_ИЛИ_ЦИФРА"
 
-ALREADY_REGISTERED = u"Уже зарегистрированы"
+ALREADY_REGISTERED = u"Команда {} уже зарегистрирована"
 ALREADY_CAPTAIN = u"Вы уже являетесь капитаном"
 # ALREADY_CHAT_REGISTERED = u"Из этого чата уже ведется игра"
 TEAM_IS_WAITING_FOR_OPPONENT = u"Команда {} уже ожидает вас!"
@@ -62,6 +63,7 @@ TEAM_NOT_WAITING_FOR_ANY_OPPONENT = u"Команда {} не ожидает ни
 TEAM_NOT_WAITING_FOR_OPPONENT = u"Команда {} не ожидает оппонента {}, но ожидает {}"
 TEAM_NAME_IS_EMPTY = u"Не могу зарегистрировать команду без имени!"
 REGISTRATION_OK = u"Норм все, давай дальше"
+REGISTERED_TEAM = u"Зарегал команду {} с капитаном (uid {})"
 OPPONENT_IS_ALREADY_SET = u"У команды (team_name {}, team_uid {}) уже есть оппонент (team_name {}, team_uid {})"
 OPPONENT_SET_OK = u"Команде (team_name {}, team_uid {}) успешно выставлен оппонент (team_name {}, team_uid {})"
 
@@ -206,6 +208,25 @@ class GameContext:
         self.opponent = None
         self.load()
 
+    def update_this_team(self, data):
+        if not self.this_team:
+            return False
+        # TODO: how to update this team and opponent so that nothing was lost???
+
+    def set_this_team(self, team_name, team_uid):
+        if self.this_team is not None:
+            return False
+        this_team_data = {"cap_uid": team_uid,
+                          "team_name": team_name,
+                          "score": 0,
+                          "field": [],
+                          "field_of_shots": [],
+                          "shots_left": 0,
+                          "score_per_hit": 0,
+                          "answered_questions": []}
+        self.this_team = Team.create_team(this_team_data)
+        return True
+
     def set_opponent(self, team_name, team_uid):
         if self.opponent is not None:
             return False
@@ -287,6 +308,19 @@ class GameManager:
         self.game_context.save()
         self.lock.release()
 
+    def question_answered(self, question_id, correct):
+        gc = self.game_context
+        if question_id in gc.this_team.answered_questions:
+            return QUESTION_ALREADY_ANSWERED.format(question_id + 1)
+        # TODO: move answer-checking here??
+        score_per_hit = 1 if correct else 0
+        gc.this_team.score_per_hit = score_per_hit
+        gc.this_team.answered_questions.append(question_id)
+
+        if correct:
+            return CORRECT_ANSWER_MSG.format(score_per_hit)
+        return INVALID_ANSWER_TEXT_MSG
+
     def load_map(self, field):
         self.game_context.this_team.field = field
         return self.game_context.this_team.parse_fields()
@@ -300,6 +334,10 @@ class GameManager:
                 self.games[i] = game
                 return True
         self.games.append(data)
+        try:
+            self.game_context.set_this_team(data["team_name"], data["team_uid"])
+        except Exception as e:
+            print "Exception occured while setting this_team data context - {}".format(e.message)
         return False
 
     def remove_game_data(self, uid=None, team_name=None, opponent_name=None):
@@ -510,12 +548,12 @@ class GameManager:
         if not team_name:
             return TEAM_NAME_IS_EMPTY
 
-        ans = REGISTRATION_OK
+        ans = REGISTERED_TEAM.format(team_name, uid)
         found_opponent = False
 
         for game in self.games:
             if game["team_name"] == team_name:
-                return ALREADY_REGISTERED
+                return ALREADY_REGISTERED.format(team_name)
             if game["team_uid"] == uid:
                 return ALREADY_CAPTAIN
             # TODO: check!!!!
