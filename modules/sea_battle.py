@@ -24,7 +24,7 @@ def need_game_session(f):
 def need_registration(f):
     def wrapper(*args):
         game_manager = args[0].game_manager
-        if game_manager.is_user_registered():
+        if game_manager.is_team_registered():
             return f(*args)
         else:
             return sbp.NOT_REGISTERED_YET_MSG
@@ -72,8 +72,7 @@ class Processor:
     def __init__(self, vkuser):
         self.config = yaml.load(open(vkuser.module_file("sea_battle", CONFIG_FILE)))
         self.user = vkuser
-        self.game_manager = sbp.GameManager()
-        # self.g_m = self.game_manager.game_context
+        self.game_manager = sbp.GameManager(vkuser)
         print self.config
 
     def is_answer_correct(self, answer, q_number):
@@ -125,7 +124,7 @@ class Processor:
     def register(self, msg):
         # from forth word
         team_name = "".join(msg.split()[3:]).strip()
-        return self.game_manager.register_team(self.game_manager.uid, team_name)
+        return self.game_manager.register_team(team_name)
 
     # @sbp.need_valid_context
     @need_game_session
@@ -167,15 +166,15 @@ class Processor:
         op_team_name = msg.split(sbp.gameRequest_command, 1)[1:][0].strip()
         answer = ""
         if self.game_manager.is_team_registered(op_team_name):
-            answer += self.game_manager.set_opponent(op_team_name)
+            answer += self.game_manager.start_game_with(op_team_name)
         else:
             return sbp.INVALID_OPPONENT_MSG
 
         # checking if current team (not op_team_name) is also awaited by op_team_name
-        if self.game_manager.opponent_available(team_name=op_team_name):
-            return sbp.CAN_SHOT_MSG
-        else:
-            return sbp.WAITING_FOR_OPPONENT_MSG
+        # if self.game_manager.opponent_available(team_name=op_team_name):
+        #     return sbp.CAN_SHOT_MSG
+        # else:
+        #     return sbp.WAITING_FOR_OPPONENT_MSG
 
     @need_game_session
     @need_registration
@@ -191,7 +190,7 @@ class Processor:
         if not user_id:
             user_id = message["user_id"]
 
-        with self.game_manager(user_id):
+        with self.game_manager(user_id, chatid):
             response_text = self.handler(msg)()
             if response_text:
                 self.user.send_message(text=response_text, userid=userid, chatid=chatid)
