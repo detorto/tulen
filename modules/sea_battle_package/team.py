@@ -6,8 +6,8 @@ from utils import *
 
 
 class Team:
-    def __init__(self, cap_uid, team_name, score, field, field_of_shots, shots_left, score_per_hit,
-                 answered_questions):
+    def __init__(self, cap_uid, team_name, op_team_name, op_cap_uid, score, field, field_of_shots,
+                 shots_left, score_per_hit, question_answered, answered_questions):
         self.cap_uid = cap_uid if cap_uid else ""
         self.team_name = team_name if team_name else ""
         self.score = score if score else 0
@@ -15,6 +15,7 @@ class Team:
         self.field_of_shots = field_of_shots if field_of_shots else []
         self.shots_left = shots_left if shots_left else 0
         self.score_per_hit = score_per_hit if score_per_hit else 0
+        self.question_answered = question_answered if question_answered else False
         self.answered_questions = answered_questions if answered_questions else []
         self.field_parsed = False
 
@@ -70,6 +71,7 @@ class Team:
                 "field_of_shots": self.field_of_shots,
                 "shots_left": self.shots_left,
                 "score_per_hit": self.score_per_hit,
+                "question_answered": self.question_answered,
                 "answered_questions": self.answered_questions}
 
     @classmethod
@@ -83,4 +85,5 @@ class Team:
                    try_get_data(data, "field_of_shots"),
                    try_get_data(data, "shots_left"),
                    try_get_data(data, "score_per_hit"),
+                   try_get_data(data, "question_answered"),
                    try_get_data(data, "answered_questions"))

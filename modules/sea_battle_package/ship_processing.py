@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 
 from utils import enum
+from ast import literal_eval as make_tuple
+from game_constants import MAP_SIZE
 
 Orientations = enum('Horizontal', 'Vertical')
 
@@ -15,8 +17,30 @@ class Point:
         self.value = value
         self.was_hit = was_hit
 
+    @classmethod
+    def try_parse(cls, coords_str):
+        try:
+            coords_str = "(" + coords_str + ")"
+            point_t = make_tuple(coords_str)
+            if not point_t[0] in range(0, MAP_SIZE):
+                return u"Первая координата точки {} не верна! Координаты должны быть от 0 до {}"\
+                    .format(coords_str, MAP_SIZE)
+            if not point_t[1] in range(0, MAP_SIZE):
+                return u"Вторая координата точки {} не верна! Координаты должны быть от 0 до {}"\
+                    .format(coords_str, MAP_SIZE)
+            return cls(point_t[0], point_t[1], -1, -1)
+        except Exception as e:
+            print "Error!! Couldn't parse a point from coordinates! - {}".format(e.message)
+            return None
+
     def __str__(self):
         return u"Point ({}, {}) with value {}".format(self.x, self.y, self.value)
+
+    def __eq__(self, other):
+        return self.x == other.x and self.y == other.y
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
 
 
 class MapParseException(Exception):
@@ -40,6 +64,24 @@ class Ship:
             points_str += str(p)
         return u"Ship ({}) with rank = {}, orientation = {}, full_load = {}" \
             .format(points_str, self.rank, str(self.orientation), str(len(self.points) == self.rank))
+
+    def check_dead(self):
+        for p in self.points:
+            if not p.was_hit:
+                return False
+        return True
+
+    def try_attack(self, hit_point):
+        for i, p in enumerate(self.points):
+            if p == hit_point:
+                if p.was_hit:
+                    return u"Вы сюда ужо стреляли, повнимательней"
+                p.was_hit = True
+                self.points[i] = p
+                if self.check_dead():
+                    return u"Корабль подбит!"
+                return u"Ай малаца, попал! (корабль ещё жив)"
+        return None
 
     @staticmethod
     def get_points_orientation(p2, p1):

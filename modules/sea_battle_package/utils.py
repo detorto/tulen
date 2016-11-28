@@ -39,9 +39,10 @@ def need_game_started(f):
     def wrapper(*args):
         game_manager = args[0]
         game_context = game_manager.game_context
-        if game_context.game_started:
+        if game_context.is_game_started:
             return f(*args)
         else:
+            # don't return anything!!
             return
     return wrapper
 
@@ -49,7 +50,7 @@ def need_game_not_started(f):
     def wrapper(*args):
         game_manager = args[0]
         game_context = game_manager.game_context
-        if not game_context.game_started:
+        if not game_context.is_game_started:
             return f(*args)
         else:
             return IMPOSSIBLE_DURING_GAME
@@ -58,27 +59,27 @@ def need_game_not_started(f):
 def need_registration(f):
     def wrapper(*args):
         game_manager = args[0]
-        if game_manager.is_team_registered():
+        if game_manager.get_team_name() and game_manager.game_context.this_team:
             return f(*args)
         else:
             return NOT_REGISTERED_YET_MSG
     return wrapper
 
-def need_not_registered(f):
+def can_register_team(f):
     def wrapper(*args):
         game_manager = args[0]
         message = args[1]
+        # from forth word
         team_name = "".join(message.split()[3:]).strip()
 
         if not team_name:
             return TEAM_NAME_IS_EMPTY_MSG
 
-        if game_manager.game_context.this_team or team_name in game_manager.teams:
+        if team_name in game_manager.teams:
             return ALREADY_REGISTERED_MSG.format(team_name)
 
-        for t_name in game_manager.teams.keys():
-            if game_manager.teams[t_name]["team_uid"] == game_manager.uid:
-                return ALREADY_CAPTAIN_MSG
+        if game_manager.get_team_name():
+            return ALREADY_CAPTAIN_MSG
 
         return f(*args)
     return wrapper
@@ -97,7 +98,7 @@ def need_opponent_set(f):
     def wrapper(*args):
         game_manager = args[0]
         game_context = game_manager.game_context
-        if game_context.opponent is None:
+        if game_context.opponent:
             return f(*args)
         else:
             return NO_OPPONENT_SET_MSG
@@ -107,9 +108,10 @@ def need_no_opponent_set(f):
     def wrapper(*args):
         game_manager = args[0]
         game_context = game_manager.game_context
-        if not game_context.opponent:
+        if not game_context.opponent and not game_context.op_team_name:
             return f(*args)
         else:
-            return OPPONENT_IS_ALREADY_SET_MSG.format(try_get_data(game_context.opponent, "team_name"))
+            return OPPONENT_IS_ALREADY_SET_MSG.format(game_context.op_team_name)
     return wrapper
+
 
