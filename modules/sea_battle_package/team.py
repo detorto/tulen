@@ -4,54 +4,77 @@
 import ship_processing as sp
 from utils import *
 
+def generate_field_of_shots():
+    return ['_' for i in range(MAP_SIZE*MAP_SIZE)]
+
 
 class Team:
-    def __init__(self, cap_uid, team_name, op_team_name, op_cap_uid, score, field, field_of_shots,
+    def __init__(self, cap_uid, team_name, score, field, field_of_shots,
                  shots_left, score_per_hit, question_answered, answered_questions):
         self.cap_uid = cap_uid if cap_uid else ""
         self.team_name = team_name if team_name else ""
         self.score = score if score else 0
         self.field = field if field else []
-        self.field_of_shots = field_of_shots if field_of_shots else []
+        self.field_of_shots = field_of_shots if field_of_shots and len(field_of_shots) else generate_field_of_shots()
         self.shots_left = shots_left if shots_left else 0
         self.score_per_hit = score_per_hit if score_per_hit else 0
         self.question_answered = question_answered if question_answered else False
         self.answered_questions = answered_questions if answered_questions else []
+
         self.field_parsed = False
 
         self.ships = {}
+        self.ships_count = 0
         for rank in sp.SHIP_RANKS_DICT:
             self.ships[rank] = []
             for ship in range(sp.SHIP_RANKS_DICT[rank]):
                 self.ships[rank].append(sp.Ship(rank))
+                self.ships_count += 1
 
-    def parse_fields(self):
+    def parse_fields(self, field):
         self.field_parsed = False
-        if self.field is None:
+        if field is None:
             return u"Поле пустое"
-        if len(self.field) != MAP_SIZE * MAP_SIZE:
+        if len(field) != MAP_SIZE * MAP_SIZE:
             print "parse_fields: map size is wrong = {}".format(len(self.field))
-            return "Field size is wrong!"
+            return u"Размер поля не верен! Должно быть ровно {} точек".format(MAP_SIZE * MAP_SIZE)
         try:
+            ships_filled = 0
             for i in range(MAP_SIZE):
                 for j in range(MAP_SIZE):
                     was_hit = False
-                    if self.field_of_shots is not None and len(self.field_of_shots) == len(self.field):
+                    if self.field_of_shots is not None and len(self.field_of_shots) == len(field):
                         # _ for unknown cell, . for missed shot, X for hit ship
                         was_hit = self.field_of_shots[j + i * MAP_SIZE] == 'X'
-                    point = sp.Point(i, j, int(self.field[j + i * MAP_SIZE]), was_hit)
+                    point = sp.Point(j, i, int(field[j + i * MAP_SIZE]), was_hit)
+                    if not point.value:
+                        continue
                     for rank in sp.SHIP_RANKS_DICT:
+                        point_added = False
                         for ship in self.ships[rank]:
                             try:
-                                ship.add_point(point)
+                                if ship.add_point(point):
+                                    point_added = True
+                                    if ship.is_full():
+                                        ships_filled += 1
+                                    break
                             except sp.MapParseException as e:
                                 print "Exception while parsing filed: {}".format(e.value)
                                 return e.value
+                        if point_added:
+                            break
+                        elif point.value == rank:
+                            return u"Кораблей ранга {} слишком много!".format(rank)
+
+            if ships_filled != self.ships_count:
+                return u"Не удалось расставить все корабли! Проверьте ваше поле на наличие всех необходимых кораблей"
+
             self.field_parsed = True
-            return "OK"
+            self.field = field
+            return GOOD_MAP_MSG
         except Exception as e:
-            print "Exception occurred while parsing field for (cap_uid {}, team_name {}) - {}" \
-                .format(self.cap_uid, self.team_name, e.message)
+            print "Exception occurred while parsing field - {}" \
+                .format(e.message)
             return e.message
 
     @classmethod
@@ -76,7 +99,7 @@ class Team:
 
     @classmethod
     def create_team(cls, data):
-        if data is None:
+        if not data:
             return None
         return cls(try_get_data(data, "cap_uid"),
                    try_get_data(data, "team_name"),

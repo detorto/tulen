@@ -26,7 +26,11 @@ class GameManager:
         self.chat_id = chat_id
         self.load()
         team_name = self.get_team_name()
-        self.game_context = GameContext(uid, self.max_score, team_name, self.get_opponent_name(team_name))
+        op_team_name = self.get_opponent_name(team_name)
+        op_cap_uid = self.get_team_cap_uid(op_team_name)
+        self.game_context = GameContext(uid, self.max_score, team_name, uid, op_team_name, op_cap_uid)
+        if team_name and not self.game_context.this_team:
+            self.game_context.this_team = self.game_context.create_team(team_name, self.uid)
 
         if self.check_winner():
             self.stop_game_session()
@@ -53,6 +57,7 @@ class GameManager:
         return SESSION_STARTED_MSG.format(self.uid)
 
     @need_game_session
+    @need_game_context
     @need_game_not_started
     @can_register_team
     def register_team(self, message):
@@ -66,20 +71,22 @@ class GameManager:
         return REGISTERED_TEAM_MSG.format(team_name, self.uid)
 
     @need_game_session
+    @need_game_context
     @need_registration
     def get_questions(self, message=""):
         return "\n".join([u"Вопрос {}: {}".format(i + 1, q.keys()[0]) for i, q in enumerate(self.questions)])
 
     @need_game_session
+    @need_game_context
     @need_registration
     @need_game_not_started
     def load_map(self, message):
         # from the third word
         field = "".join(message.split()[2:]).strip()
-        self.game_context.this_team.field = field
-        return self.game_context.this_team.parse_fields()
+        return self.game_context.this_team.parse_fields(field)
 
     @need_game_session
+    @need_game_context
     @need_registration
     @need_game_not_started
     @need_valid_map
@@ -96,6 +103,7 @@ class GameManager:
             print "Exception occurred while parsing opponent team name"
 
     @need_game_session
+    @need_game_context
     @need_registration
     @need_valid_map
     @need_opponent_set
@@ -116,18 +124,28 @@ class GameManager:
         return self.question_answered(q_number - 1, self.is_answer_correct(q_answer, q_number - 1))
 
     @need_game_session
+    @need_game_context
     @need_registration
     @need_valid_map
     @need_opponent_set
     @need_game_started
+    @need_question_answered
     def attack(self, message):
         coords_str = message[message.index(attack_command) + len(attack_command):]
         hit_point = _Point.try_parse(coords_str)
         if hit_point:
-            for ship in self.game_context.this_team.ships:
-                ret_val = ship.try_attack(hit_point)
-                if ret_val:
-                    return ret_val
+            gc = self.game_context
+            shot = gc.opponent.field_of_shots[hit_point.x + hit_point.y * MAP_SIZE]
+            if shot == '.' or shot == 'X':
+                return u"Вы сюда ужо стреляли, повнимательней"
+            for ship in gc.opponent.ships:
+                was_hit, msg = ship.try_attack(hit_point)
+                if was_hit:
+                    gc.opponent.field_of_shots[hit_point.x + hit_point.y * MAP_SIZE] = 'X'
+                if msg:
+                    return msg
+            gc.opponent.field_of_shots[hit_point.x + hit_point.y * MAP_SIZE] = '.'
+            gc.this_team.question_answered = False
             return u"Сорян, мимо"
         return u"Ты втираешь мне какую-то дичь! (вы ошиблись с форматом координат)"
 
@@ -153,12 +171,15 @@ class GameManager:
         # Check the winner, save game data, send message about game ending to both players,
         # delete both teams from self.teams, and current game from self.games
 
+        if not self.game_context:
+            return SESSION_STOPPED_MSG.format(self.uid)
+
         team_name = self.get_team_name()
-        opponent_name = self.get_opponent_name()
+        opponent_name = self.get_opponent_name(team_name)
 
         if team_name:
             game, i = self.get_game_data(team_name=team_name)
-            if game and self.game_context.is_game_started():
+            if game and self.is_game_started():
                 gc = self.game_context
                 winner_name = self.check_winner()
                 if not winner_name:
@@ -179,15 +200,21 @@ class GameManager:
 
                 GameManager.save_game_results(file_name, data)
 
-                self.send_message(self.teams[winner_name]["team_uid"], self.teams[winner_name]["team_chat_id"], u"Это победа! Ай малаца")
-                self.send_message(self.teams[looser.team_name]["team_uid"], self.teams[looser.team_name]["team_chat_id"], u"Луууузеерыы! (Вы продули...=\)")
+                self.send_message(self.teams[winner_name]["team_uid"],
+                                  self.teams[winner_name]["team_chat_id"],
+                                  u"Это победа! Ай малаца")
+                self.send_message(self.teams[looser.team_name]["team_uid"],
+                                  self.teams[looser.team_name]["team_chat_id"],
+                                  u"Луууузеерыы! (Вы продули...=\)")
 
             if i >= 0:
                 self.games = [g for g, j in enumerate(self.games) if j != i]
 
             try:
-                del self.teams[team_name]
-                del self.teams[opponent_name]
+                if team_name:
+                    del self.teams[team_name]
+                if opponent_name:
+                    del self.teams[opponent_name]
             except Exception as e:
                 print "Exception while deleting teams {} and {} - {}".format(team_name, opponent_name, e.message)
 
@@ -222,6 +249,7 @@ class GameManager:
         return None, -1
 
     @need_game_session
+    @need_game_context
     @need_game_started
     def check_winner(self):
         return self.game_context.check_winner()
@@ -281,7 +309,8 @@ class GameManager:
                 continue
             # checking if this_team is awaited by some team
             if game["opponent_team_name"] == t_team_name and game["team_name"] != op_team_name:
-                message = u"Команда {}, которую вы ожидали, играет с другой командой - выберите другого оппонента"
+                message = u"Команда {}, которую вы ожидали, играет с другой командой - выберите другого оппонента"\
+                    .format(t_team_name)
                 team = self.teams[game["team_name"]]
                 if team:
                     self.send_message(try_get_data(team, "team_uid"),
@@ -309,10 +338,23 @@ class GameManager:
                       "winner": "",
                       "game_started_datetime": None}
         self.games.append(found_game)
+        opponent_team = self.teams[op_team_name]
+        message = u"Команда {} ожидает вас в игре Морской Бой! Для начала введите команду Играю в морской бой с {}"\
+            .format(t_team_name, t_team_name)
+        if opponent_team:
+            self.send_message(try_get_data(opponent_team, "team_uid"),
+                              try_get_data(opponent_team, "team_chat_id"),
+                              message)
         return WAITING_FOR_OPPONENT_MSG.format(op_team_name)
 
     def is_answer_correct(self, answer, q_number):
         return answer == self.questions[q_number].values()[0]
+
+    def is_game_started(self):
+        game, i = self.get_game_data()
+        if not game:
+            return False
+        return try_get_data(game, "game_started")
 
     def question_answered(self, question_id, correct):
         gc = self.game_context
@@ -321,6 +363,7 @@ class GameManager:
 
         score_per_hit = 1 if correct else 0
         gc.this_team.score_per_hit = score_per_hit
+        gc.this_team.question_answered = True
         gc.this_team.answered_questions.append(question_id)
 
         if correct:
@@ -334,8 +377,7 @@ class GameManager:
                 return team_name
         return ""
 
-    def get_opponent_name(self, team_name=None):
-        team_name = self.game_context.this_team_name if not team_name else team_name
+    def get_opponent_name(self, team_name):
         if not team_name:
             return ""
         for game in self.games:
@@ -344,3 +386,8 @@ class GameManager:
             if game["opponent_team_name"] == team_name:
                 return game["team_name"]
         return ""
+
+    def get_team_cap_uid(self, team_name):
+        if not team_name or not self.teams:
+            return ""
+        return try_get_data(self.teams[team_name], "team_uid")

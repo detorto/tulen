@@ -1,11 +1,9 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-from utils import enum
+from utils import Orientation
 from ast import literal_eval as make_tuple
 from game_constants import MAP_SIZE
-
-Orientations = enum('Horizontal', 'Vertical')
 
 SHIP_RANKS_DICT = {1: 4, 2: 3, 3: 2, 4: 1}
 
@@ -56,14 +54,17 @@ class Ship:
         self.rank = rank
         self.points = []
         # self.hit_points = hit_points
-        self.orientation = None
+        self.orientation = Orientation.NONE
 
     def __str__(self):
         points_str = u""
         for p in self.points:
             points_str += str(p)
         return u"Ship ({}) with rank = {}, orientation = {}, full_load = {}" \
-            .format(points_str, self.rank, str(self.orientation), str(len(self.points) == self.rank))
+            .format(points_str, self.rank, str(self.orientation), str(self.is_full()))
+
+    def is_full(self):
+        return len(self.points) == self.rank
 
     def check_dead(self):
         for p in self.points:
@@ -75,28 +76,31 @@ class Ship:
         for i, p in enumerate(self.points):
             if p == hit_point:
                 if p.was_hit:
-                    return u"Вы сюда ужо стреляли, повнимательней"
+                    return False, u"Вы сюда ужо стреляли, повнимательней"
                 p.was_hit = True
                 self.points[i] = p
                 if self.check_dead():
-                    return u"Корабль подбит!"
-                return u"Ай малаца, попал! (корабль ещё жив)"
-        return None
+                    return True, u"Корабль подбит!"
+                return True, u"Ай малаца, попал! (корабль ещё жив)"
+        return False, None
 
     @staticmethod
-    def get_points_orientation(p2, p1):
-        if p2.x in range(p1.x - 1, p1.x + 1, 2) and p2.y in range(p1.y - 1, p1.y + 1, 2):
+    def get_points_orientation(new_point, placed_point):
+        range_x = range(placed_point.x - 1, placed_point.x + 2, 2)
+        range_y = range(placed_point.y - 1, placed_point.y + 2, 2)
+        if new_point.x in range_x and new_point.y in range_y:
             # skewed orientations ain't supported!
-            return None
-        if p2.x in range(p1.x - 1, p1.x + 1, 2):
-            return Orientations.Horizontal
-        if p2.y in range(p1.y - 1, p1.y + 1, 2):
-            return Orientations.Vertical
-        return None
+            return Orientation.NONE
+
+        if new_point.x in range_x:
+            return Orientation.HORIZONTAL
+        if new_point.y in range_y:
+            return Orientation.VERTICAL
+        return Orientation.NONE
 
     def can_place_point(self, point, p):
         orientation = self.get_points_orientation(point, p)
-        if orientation is None:
+        if not orientation:
             return None
         if self.orientation and self.orientation != orientation:
             return None
@@ -106,16 +110,19 @@ class Ship:
         if point.value != self.rank:
             return False
 
+        belongs = len(self.points) == 0
+
         for p in self.points:
             orientation = self.can_place_point(point, p)
-            if orientation is not None:
+            if orientation:
                 self.orientation = orientation
+                belongs = True
                 break
-        return True
+        return belongs
 
     def can_place_another_ship(self, point):
         for p in self.points:
-            if point.x in range(p.x - 1, p.x + 1, 2) and point.y in range(p.y - 1, p.y + 1, 2):
+            if point.x in range(p.x - 1, p.x + 2, 2) and point.y in range(p.y - 1, p.y + 2, 2):
                 return False
         return True
 
