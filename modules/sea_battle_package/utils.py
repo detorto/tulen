@@ -66,11 +66,7 @@ def need_game_started(f):
         if game_manager.is_game_started():
             return f(*args)
         else:
-            game, i = game_manager.get_game_data()
-            if game:
-                op_team_name = game["opponent_team_name"]
-                return WAITING_FOR_OPPONENT_MSG.format(op_team_name)
-            # don't return anything!!
+            # do not return anything!!!!!
             return
     return wrapper
 

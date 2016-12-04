@@ -22,7 +22,12 @@ class Team:
         self.answered_questions = answered_questions if answered_questions else []
 
         self.field_parsed = False
+        self.ships = {}
+        self.ships_count = 0
+        self.points = []
 
+    def clear_ships(self):
+        self.field_parsed = False
         self.ships = {}
         self.ships_count = 0
         for rank in sp.SHIP_RANKS_DICT:
@@ -30,9 +35,31 @@ class Team:
             for ship in range(sp.SHIP_RANKS_DICT[rank]):
                 self.ships[rank].append(sp.Ship(rank))
                 self.ships_count += 1
+        self.points = []
+
+    # prints either self field merged with shots made at this field
+    # or only field of shots
+    def print_fields(self, only_shots):
+        field = u""
+        to_print = self.field_of_shots
+
+        for i in range(MAP_SIZE):
+            for j in range(MAP_SIZE):
+                printed = not only_shots
+
+                if not only_shots:
+                    printed = to_print[j + i * MAP_SIZE] == '_' and self.field[j + i * MAP_SIZE] != '0'
+                    if printed:
+                        field += str(self.field[j + i * MAP_SIZE]) + u"\t"
+
+                if not printed:
+                    field += to_print[j + i * MAP_SIZE] + u"\t"
+
+            field += u"\n"
+        return field
 
     def parse_fields(self, field):
-        self.field_parsed = False
+        self.clear_ships()
         if field is None:
             return u"Поле пустое"
         if len(field) != MAP_SIZE * MAP_SIZE:
@@ -58,16 +85,20 @@ class Team:
                                     if ship.is_full():
                                         ships_filled += 1
                                     break
-                            except sp.MapParseException as e:
-                                print "Exception while parsing filed: {}".format(e.value)
-                                return e.value
+                            except Exception as e:
+                                if isinstance(e, sp.MapParseException):
+                                    return e.value
+                                print "Exception while parsing filed: {}".format(e.message)
+                                return e.message
                         if point_added:
+                            self.points.append(point)
                             break
                         elif point.value == rank:
                             return u"Кораблей ранга {} слишком много!".format(rank)
 
             if ships_filled != self.ships_count:
-                return u"Не удалось расставить все корабли! Проверьте ваше поле на наличие всех необходимых кораблей"
+                return u"Не удалось расставить все корабли! " \
+                       u"Проверьте ваше поле на наличие всех необходимых кораблей и точек в них"
 
             self.field_parsed = True
             self.field = field

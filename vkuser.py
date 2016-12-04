@@ -16,8 +16,9 @@ logger = logging.getLogger('tulen')
 
 
 class VkUser(object):
-    def __init__(self, config, update_stat, testmode=False):
+    def __init__(self, config, update_stat, testmode=False, test_scenario=None):
         self.config = config
+        self.test_scenario = test_scenario
 
         self.update_stat_ = update_stat
 
@@ -75,12 +76,40 @@ class VkUser(object):
         self.mutex.release()
         logger.debug("Mutex released")
 
+    def process_test_scenarios(self):
+        try:
+            messages = []
+            if self.test_scenario is not None and self.test_scenario["enabled"] and not self.test_scenario["processed"]:
+                self.test_scenario["processed"] = True
+                users = self.test_scenario["users"]
+                if len(users) > 0:
+                    processing = True
+                    i = 0
+                    while processing:
+                        processing = False
+                        for user_name in users:
+                            user = self.test_scenario[user_name]
+                            if i < len(user["messages"]):
+                                messages.append({"read_state": 0,
+                                                 "id": user["uid"],
+                                                 "user_id": user["uid"],
+                                                 "chat_id": user["chat_id"],
+                                                 "body": user["messages"][i]})
+                                processing = True
+                        i += 1
+            return messages
+        except Exception as e:
+            logger.debug("Exception occurred while processing test scenarios: {}".format(e.message))
+            return []
+
     def process_all_messages(self):
         logger.debug("Retrieving messages")
         if self.testmode:
-            msg = raw_input("msg>> ")
-            msg = msg.decode('utf-8')
-            messages = [{"read_state": 0, "id": "0", "body": msg, "chat_id": 2}]
+            messages = self.process_test_scenarios()
+            if len(messages) == 0:
+                msg = raw_input("msg>> ")
+                msg = msg.decode('utf-8')
+                messages = [{"read_state": 0, "id": "0", "body": msg, "chat_id": 2}]
         else:
             operation = self.api.messages.get
             args = {"count": self.config["message_count"]}

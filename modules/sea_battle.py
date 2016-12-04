@@ -20,6 +20,12 @@ class Processor:
     def start_game_session(self, msg):
         return self.game_manager.start_game_session(msg)
 
+    def show_commands(self, msg):
+        return self.game_manager.show_commands(msg)
+
+    def show_teams(self, msg):
+        return self.game_manager.show_teams(msg)
+
     def register(self, msg):
         return self.game_manager.register_team(msg)
 
@@ -31,6 +37,9 @@ class Processor:
 
     def game_request(self, msg):
         return self.game_manager.game_request(msg)
+
+    def show_maps(self, msg):
+        return self.game_manager.show_maps(msg)
 
     def answer(self, msg):
         return self.game_manager.parse_answer(msg)
@@ -55,7 +64,10 @@ class Processor:
                   sbp.attack_command: self.attack,
                   sbp.questions_command: self.questions,
                   sbp.loadMap_command: self.load_map,
-                  sbp.registerTeam_command: self.register}
+                  sbp.registerTeam_command: self.register,
+                  sbp.showTeams_command: self.show_teams,
+                  sbp.showGameCommands_command: self.show_commands,
+                  sbp.showMaps_command: self.show_maps}
 
         # wrapper for method with param
         def wrapper(funk, msg):

@@ -33,14 +33,14 @@ class GameContext:
 
     def check_winner(self):
         if not self.this_team or not self.opponent:
-            return ""
-        t_score = self.this_team["score"]
-        op_score = self.opponent["score"]
+            return None
+        t_score = self.this_team.score
+        op_score = self.opponent.score
         if t_score >= self.max_score:
             return self.this_team_name
         if op_score >= self.max_score:
             return self.op_team_name
-        return ""
+        return None
 
     @staticmethod
     def load_team_data(team_cap_uid):
@@ -71,6 +71,10 @@ class GameContext:
     def load(self):
         self.this_team = GameContext.load_team_data(self.this_cap_uid)
         self.opponent = GameContext.load_team_data(self.op_cap_uid)
+        if self.this_team:
+            self.this_team.parse_fields(self.this_team.field)
+            if self.opponent:
+                self.opponent.parse_fields(self.opponent.field)
 
     def save(self):
         GameContext.save_team_data(self.this_team)

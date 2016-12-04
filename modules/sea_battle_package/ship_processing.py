@@ -129,10 +129,11 @@ class Ship:
     def add_point(self, point):
         if self.this_ship_point(point):
             if len(self.points) >= self.rank:
-                raise MapParseException("too many points in ship {} for rank - {}".format(str(self)))
+                return False
+                # raise MapParseException(u"слишком много точек в корабле ранга {}".format(str(self.rank)))
             self.points.append(point)
             return True
 
         if not self.can_place_another_ship(point):
-            raise MapParseException("another ship's point {} is too close to this ship {}".format(point, str(self)))
+            raise MapParseException(u"корабли стоят слишком близко для ранга {}".format(self.rank))
         return False
