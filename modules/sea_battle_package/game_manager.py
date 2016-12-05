@@ -14,6 +14,10 @@ class GameManager:
         self.lock = threading.Lock()
         self.vk_user = vk_user
         self.questions = questions
+        if not self.questions or len(self.questions) == 0:
+            self.questions = []
+            for i in range(700):
+                self.questions.append({i: str(i+1)})
         self.max_score = 20
 
         self.teams = {}
@@ -44,9 +48,9 @@ class GameManager:
     def __exit__(self, type, value, traceback):
         if self.check_winner():
             self.stop_game_session()
-        else:
-            self.save()
-            self.game_context.save()
+        # else:
+        self.save()
+        self.game_context.save()
         self.lock.release()
 
     #   game commands   ================================================================================================
@@ -131,10 +135,10 @@ class GameManager:
     @need_valid_map
     def show_maps(self, message):
         gc = self.game_context
-        field = u"ваше поле:\n"
+        field = u"поле команды {} (ваше):\n".format(gc.this_team_name)
         field += gc.this_team.print_fields(False)
         if gc.opponent:
-            field += u"поле выстрелов по оппоненту:\n"
+            field += u"поле выстрелов по оппоненту {}:\n".format(gc.op_team_name)
             field += gc.opponent.print_fields(True)
         return field
 
@@ -147,7 +151,7 @@ class GameManager:
     def parse_answer(self, message):
         data = message.split()[1:]
         if len(data) < 2:
-            return message.INVALID_ANSWER_FORMAT_MSG
+            return INVALID_ANSWER_FORMAT_MSG
         try:
             q_number = int(data[0])
             q_answer = data[1].strip()

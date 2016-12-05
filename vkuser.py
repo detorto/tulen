@@ -1,3 +1,6 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+
 import vk
 import time
 import json
@@ -76,6 +79,39 @@ class VkUser(object):
         self.mutex.release()
         logger.debug("Mutex released")
 
+    @staticmethod
+    def find_shot(shots, s):
+        for ss in shots:
+            if s == ss:
+                return True
+        return False
+
+    @staticmethod
+    def gen_coordinates(shots):
+        x = random.randint(1, 10)
+        y = random.randint(1, 10)
+        while True:
+            if VkUser.find_shot(shots, (x, y)):
+                for i in range(1, 11):
+                    for j in range(1, 11):
+                        if not VkUser.find_shot(shots, (i, j)):
+                            x = i
+                            y = j
+                            return x, y
+            else:
+                return x, y
+
+    @staticmethod
+    def generate_seabattle_message(ans, what, shots):
+        if what == 1:
+            return u"ответ {} {}".format(ans, ans), shots
+        if what == 2:
+            x, y = VkUser.gen_coordinates(shots)
+            shots.append((x,y))
+            return u"атакую {},{}".format(x, y), shots
+        if what == 3:
+            return u"покажи карты", shots
+
     def process_test_scenarios(self):
         try:
             messages = []
@@ -84,7 +120,15 @@ class VkUser(object):
                 users = self.test_scenario["users"]
                 if len(users) > 0:
                     processing = True
+
+                    # for generator
                     i = 0
+                    i_max = 300
+                    ans = 1
+                    what = 1
+                    gen_started = False
+                    shots = {}
+
                     while processing:
                         processing = False
                         for user_name in users:
@@ -95,7 +139,24 @@ class VkUser(object):
                                                  "user_id": user["uid"],
                                                  "chat_id": user["chat_id"],
                                                  "body": user["messages"][i]})
-                                processing = True
+                            else:
+                                gen_started = True
+                                if not user["uid"] in shots:
+                                    shots[user["uid"]] = []
+                                body, shot = VkUser.generate_seabattle_message(ans, what, shots[user["uid"]])
+                                shots[user["uid"]] = shot
+                                messages.append({"read_state": 0,
+                                                 "id": user["uid"],
+                                                 "user_id": user["uid"],
+                                                 "chat_id": user["chat_id"],
+                                                 "body": body})
+                            processing = i < i_max
+                        if gen_started:
+                            if what == 1:
+                                ans += 1
+                            what += 1
+                            if what > 3:
+                                what = 1
                         i += 1
             return messages
         except Exception as e:
