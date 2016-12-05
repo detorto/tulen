@@ -40,6 +40,10 @@ class GameContext:
             return self.this_team_name
         if op_score >= self.max_score:
             return self.op_team_name
+        if self.this_team.get_alive_ships_count() == 0:
+            return self.op_team_name
+        elif self.opponent.get_alive_ships_count() == 0:
+            return self.this_team_name
         return None
 
     @staticmethod

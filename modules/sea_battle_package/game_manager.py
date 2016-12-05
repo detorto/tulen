@@ -14,7 +14,7 @@ class GameManager:
         self.lock = threading.Lock()
         self.vk_user = vk_user
         self.questions = questions
-        self.max_score = 10
+        self.max_score = 20
 
         self.teams = {}
         self.games = []
@@ -114,7 +114,6 @@ class GameManager:
     @need_registration
     @need_valid_map
     @need_game_not_started
-    # @need_no_opponent_set
     def game_request(self, message):
         try:
             op_team_name = message.split(gameRequest_command, 1)[1:][0].strip()
@@ -130,8 +129,6 @@ class GameManager:
     @need_game_context
     @need_registration
     @need_valid_map
-    # @need_opponent_set
-    # @need_game_started
     def show_maps(self, message):
         gc = self.game_context
         field = u"ваше поле:\n"
@@ -172,6 +169,8 @@ class GameManager:
     def attack(self, message):
         coords_str = message[message.index(attack_command) + len(attack_command):]
         hit_point = _Point.try_parse(coords_str)
+        if hit_point and not isinstance(hit_point, _Point):
+            return hit_point
         if hit_point:
             gc = self.game_context
             shot = gc.opponent.field_of_shots[hit_point.x + hit_point.y * MAP_SIZE]
@@ -182,12 +181,11 @@ class GameManager:
                     was_hit, msg = ship.try_attack(hit_point)
                     if was_hit:
                         gc.opponent.field_of_shots[hit_point.x + hit_point.y * MAP_SIZE] = 'X'
+                        self.shot_was_made(was_hit)
                     if msg:
                         return msg
             gc.opponent.field_of_shots[hit_point.x + hit_point.y * MAP_SIZE] = '.'
-            gc.this_team.question_answered = False
-            gc.this_team.score += gc.this_team.score_per_hit
-            gc.this_team.score_per_hit = 0
+            self.shot_was_made(False)
             return u"Сорян, мимо"
         return u"Ты втираешь мне какую-то дичь! (вы ошиблись с форматом координат)"
 
@@ -195,12 +193,6 @@ class GameManager:
     def save_game_results(file_name, data):
         try:
             with open(file_name, 'w') as outfile:
-                data = {"winner": data["winner"],
-                        "looser": data["looser"],
-                        "winner_score": data["winner_score"],
-                        "looser_score": data["looser_score"],
-                        "game_started": data["game_started"],
-                        "game_finished": data["game_finished"]}
                 yaml.dump(data, outfile, default_flow_style=True)
         except Exception as e:
             print "Exception occurred while saving game results: {}" \
@@ -229,7 +221,7 @@ class GameManager:
                 winner = gc.this_team if gc.this_team_name == winner_name else gc.opponent
                 looser = gc.this_team if gc.this_team_name != winner_name else gc.opponent
 
-                game_finished = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+                game_finished = datetime.now().strftime("%d.%m.%Y %H.%M.%S")
                 data = {"winner": winner.team_name,
                         "looser": looser.team_name,
                         "winner_score": winner.score,
@@ -248,8 +240,12 @@ class GameManager:
                                   self.teams[looser.team_name]["team_chat_id"],
                                   u"Луууузеерыы! (Вы продули...=\)")
 
+                self.active_sessions = [session for session in self.active_sessions if
+                                        session["session_uid"] != self.teams[winner_name]["team_uid"] and
+                                        session["session_uid"] != self.teams[looser.team_name]["team_uid"]]
+
             if i >= 0:
-                self.games = [g for g, j in enumerate(self.games) if j != i]
+                self.games = [g for j, g in enumerate(self.games) if j != i]
 
             try:
                 if team_name:
@@ -266,6 +262,13 @@ class GameManager:
         return SESSION_STOPPED_MSG.format(self.uid)
 
     #   game commands   ================================================================================================
+
+    def shot_was_made(self, hit):
+        gc = self.game_context
+        gc.this_team.question_answered = False
+        gc.this_team.score += gc.this_team.score_per_hit if hit else 0
+        gc.this_team.score_per_hit = 0
+        print "Team uid {} score - {}".format(gc.this_team.cap_uid, gc.this_team.score)
 
     def remove_game_data(self, team_name=None):
         team_name = self.get_team_name() if not team_name else team_name
@@ -303,12 +306,27 @@ class GameManager:
             return game["winner"]
         return ""
 
+    @staticmethod
+    def check_list(container, data_type):
+        if len(container) < 1:
+            return True, -1
+        for i, data in enumerate(container):
+            if not isinstance(data, data_type):
+                return False, i
+        return True, -1
+
+    def check_games(self):
+        ok, i = GameManager.check_list(self.games, dict)
+        if not ok and i >= 0:
+            self.games = [game for j, game in enumerate(self.games) if j != i]
+
     def load(self):
         try:
             with open("./files/seabattle_game.yaml", 'r') as stream:
                 data = yaml.load(stream)
                 self.teams = data["teams"]
                 self.games = data["games"]
+                self.check_games()
                 self.active_sessions = data["active_sessions"]
         except Exception as e:
             self.teams = {}
@@ -318,6 +336,7 @@ class GameManager:
 
     def save(self):
         with open('./files/seabattle_game.yaml', 'w') as outfile:
+            self.check_games()
             data = {"teams": self.teams, "games": self.games, "active_sessions": self.active_sessions}
             yaml.dump(data, outfile, default_flow_style=True)
 

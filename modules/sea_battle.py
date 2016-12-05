@@ -91,6 +91,7 @@ class Processor:
             user_id = message["user_id"]
 
         with self.game_manager(user_id, chatid):
+            logger.info(msg)
             response_text = self.handler(msg)()
             if response_text:
                 self.user.send_message(text=response_text, userid=userid, chatid=chatid)

@@ -26,6 +26,16 @@ class Team:
         self.ships_count = 0
         self.points = []
 
+    def get_alive_ships_count(self):
+        if not self.field_parsed:
+            return -1
+        count = 0
+        for rank in sp.SHIP_RANKS_DICT:
+            for ship in self.ships[rank]:
+                if not ship.check_dead():
+                    count += 1
+        return count
+
     def clear_ships(self):
         self.field_parsed = False
         self.ships = {}

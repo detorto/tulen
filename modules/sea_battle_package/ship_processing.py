@@ -21,11 +21,13 @@ class Point:
             coords_str = "(" + coords_str + ")"
             point_t = make_tuple(coords_str)
             if not point_t[0] in range(0, MAP_SIZE):
-                return u"Первая координата точки {} не верна! Координаты должны быть от 0 до {}"\
-                    .format(coords_str, MAP_SIZE)
+                return u"Первая координата точки {} не верна! Координаты должны быть от 0 до {} включительно"\
+                    .format(coords_str, MAP_SIZE-1)
             if not point_t[1] in range(0, MAP_SIZE):
-                return u"Вторая координата точки {} не верна! Координаты должны быть от 0 до {}"\
-                    .format(coords_str, MAP_SIZE)
+                return u"Вторая координата точки {} не верна! Координаты должны быть от 0 до {} включительно"\
+                    .format(coords_str, MAP_SIZE-1)
+            if len(point_t) != 2:
+                return u"Неверный формат координат, это двумерная игра, дурни"
             return cls(point_t[0], point_t[1], -1, -1)
         except Exception as e:
             print "Error!! Couldn't parse a point from coordinates! - {}".format(e.message)
