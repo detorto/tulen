@@ -360,7 +360,7 @@ class Processor:
                             if not bet:
                                 return
                             print "Bet on bot ", bet
-                            text = self.process_bet_on_bot(message["user_id"],bet)
+                            text = self.process_bet_on_bot(message["user_id"],abs(bet))
                             self.save_context()
                             self.user.send_message(text, chatid=chatid, userid=userid)        
                             return True
@@ -374,7 +374,7 @@ class Processor:
                             if not bet:
                                 return
                             print "Bet on bot ", bet
-                            text = self.process_bet_on_bot(message["user_id"],bet)
+                            text = self.process_bet_on_bot(message["user_id"],abs(bet))
                             self.save_context()
                             self.user.send_message(text, chatid=chatid, userid=userid)        
                             return True
@@ -389,7 +389,7 @@ class Processor:
                             print "Bet on user: ", bet
                             if not bet:
                                 return    
-                            text = self.process_bet_on_user(message["user_id"],bet)
+                            text = self.process_bet_on_user(message["user_id"],abs(bet))
                             self.save_context()
                             self.user.send_message(text, chatid=chatid, userid=userid)        
                             return True

@@ -16,16 +16,25 @@ class Processor:
 
 	def __init__(self , user):
 		self.user = user
+		self.mc  = 0
+		self.uids = set()
 		
 	def process_message(self, message, chatid, userid):
 		user_id = message["user_id"]
-		fs = self.user.friendStatus(user_id)
-		print "UID", user_id, "FS: ", fs
-		log.info("UID {} is friend status = {}".format(user_id,fs))
-		if fs == 0:
-			if self.user.friendAdd(user_id):
+		self.uids.add(user_id)
+		self.mc += 1
+		print "--------- MC is ", self.mc
+		if self.mc < 20:
+			return
+		self.mc = 0
+		fs = self.user.friendStatus(",".join([str(uid) for uid in self.uids]))
+		for item in fs:	
+                     print item
+                     if item["friend_status"] == 0:
+			if self.user.friendAdd(item["user_id"]):
+                                print "Added to friends ",item["user_id"]
 				log.info("Send a friend req for  id{}".format(user_id))
-				self.pixelsort_and_post_on_wall(user_id)
+				self.pixelsort_and_post_on_wall(item["user_id"])
 			else:
 				log.error("Failed to send a friend req for  id{}".format(user_id))
 	def pixelsort_and_post_on_wall(self, user_id):

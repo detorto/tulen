@@ -91,10 +91,10 @@ class Processor:
 
     def load_random_word(self):
         lines = open(self.user.module_file("hangman", self.config["regular_dict"])).readlines()
-        lines = [ l.decode("utf-8")[:-2] for l in lines ]
+        lines = [ l.decode("utf-8").strip() for l in lines ]
         
         slines = open(self.user.module_file("hangman", self.config["secret_dict"])).readlines()
-        slines = [ l.decode("utf-8")[:-2] for l in slines ]
+        slines = [ l.decode("utf-8").strip() for l in slines ]
         
         a = lines
         if random.randint(0,100) < 20:

@@ -1,9 +1,6 @@
 ascii_img
 approve
-hangman
-blackjack
 reply
-wiki
 vkmusic
 vkwall
 vkvideo
@@ -11,6 +8,11 @@ vkdocs
 help
 googleimg
 like
-add_to_friends
 pixelsort
 alarm
+unique censor
+unique hangman
+unique blackjack
+unique wiki
+global like
+global add_to_friends
