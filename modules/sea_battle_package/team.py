@@ -26,6 +26,16 @@ class Team:
         self.ships_count = 0
         self.points = []
 
+    @staticmethod
+    def get_ship_instruction():
+        msg = u"На карте должны быть расставлены корабли следующих рангов:\n"
+        for rank in sp.SHIP_RANKS_DICT:
+            msg += u"Ранг {} - {} корабля(-ь)\n".format(rank, sp.SHIP_RANKS_DICT[rank])
+        msg += u"Ранг означает количество точек в корабле, а также номиналы этих точек.\n" \
+               u"То есть, если корабль ранга 3, " \
+               u"вам нужно разместить на поле подряд 3 цифры 3 по горизонтали или вертикали."
+        return msg
+
     def get_alive_ships_count(self):
         if not self.field_parsed:
             return -1
@@ -74,7 +84,9 @@ class Team:
             return u"Поле пустое"
         if len(field) != MAP_SIZE * MAP_SIZE:
             print "parse_fields: map size is wrong = {}".format(len(self.field))
-            return u"Размер поля не верен! Должно быть ровно {} точек".format(MAP_SIZE * MAP_SIZE)
+            msg = u"Размер поля не верен! Должно быть ровно {} точек\n".format(MAP_SIZE * MAP_SIZE)
+            msg += Team.get_ship_instruction()
+            return msg
         try:
             ships_filled = 0
             for i in range(MAP_SIZE):
@@ -107,8 +119,10 @@ class Team:
                             return u"Кораблей ранга {} слишком много!".format(rank)
 
             if ships_filled != self.ships_count:
-                return u"Не удалось расставить все корабли! " \
-                       u"Проверьте ваше поле на наличие всех необходимых кораблей и точек в них"
+                msg = u"Не удалось расставить все корабли! " \
+                       u"Проверьте ваше поле на наличие всех необходимых кораблей и точек в них\n"
+                msg += Team.get_ship_instruction()
+                return msg
 
             self.field_parsed = True
             self.field = field

@@ -16,8 +16,8 @@ class GameManager:
         self.questions = questions
         if not self.questions or len(self.questions) == 0:
             self.questions = []
-            for i in range(700):
-                self.questions.append({i: str(i+1)})
+            for i in range(1, 201):
+                self.questions.append({i: str(i)})
         self.max_score = 20
 
         self.teams = {}
@@ -48,7 +48,6 @@ class GameManager:
     def __exit__(self, type, value, traceback):
         if self.check_winner():
             self.stop_game_session()
-        # else:
         self.save()
         self.game_context.save()
         self.lock.release()
@@ -59,7 +58,20 @@ class GameManager:
     def start_game_session(self, message=""):
         self.active_sessions.append({"session_uid": self.uid,
                                      "session_started": datetime.now().strftime("%d.%m.%Y %H:%M:%S")})
-        return SESSION_STARTED_MSG.format(self.uid)
+        msg = SESSION_STARTED_MSG.format(self.uid)
+        msg += u"\n\nДля игры вам необходимо зарегистрировать команду, загрузить карту, " \
+               u"выбрать оппонента из числа зарегистрированных команд, дождаться начала игры с ним, " \
+               u"после чего начинать атаку на корабли оппонента, предварительно отвечая на вопросы игры.\n\n" \
+               u"Пример очередности ваших команд:\n" \
+               u"1. я капитан команды ИМЯ_КОМАНДЫ\n" \
+               u"2. загрузи карту МАССИВ_КАРТЫ\n" \
+               u"3. играю с командой ИМЯ_КОМАНДЫ_ОППОНЕНТА\n" \
+               u"4. вопросы\n" \
+               u"5. ответ НОМЕР_ВОПРОСА ОТВЕТ\n" \
+               u"6. атакую КООРДИНАТА_X,КООРДИНАТА_Y\n" \
+               u"И так далее до окончания игры. Чтобы покинуть игру напишите Мы закончили морской бой\n\n" \
+               u"Список игровых команд выводится по команде Инструкция"
+        return msg
 
     @need_game_session
     @need_game_context
@@ -79,16 +91,16 @@ class GameManager:
     def show_commands(self, message=""):
         answer = u"команды игры Морской Бой:\n"
         answer += start_game_processing_command + u"\n"
-        answer += stop_game_processing_command + u"\n"
-        answer += answer_command + u"\n"
-        answer += gameRequest_command + u"\n"
-        answer += attack_command + u"\n"
-        answer += questions_command + u"\n"
-        answer += loadMap_command + u"\n"
         answer += registerTeam_command + u"\n"
-        answer += showMaps_command + u"\n"
+        answer += loadMap_command + u"\n"
+        answer += questions_command + u"\n"
         answer += showTeams_command + u"\n"
+        answer += gameRequest_command + u"\n"
+        answer += answer_command + u"\n"
+        answer += attack_command + u"\n"
+        answer += showMaps_command + u"\n"
         answer += showGameCommands_command + u"\n"
+        answer += stop_game_processing_command + u"\n"
         return answer
 
     @need_game_session
@@ -102,7 +114,13 @@ class GameManager:
     @need_game_context
     @need_registration
     def get_questions(self, message=""):
-        return "\n".join([u"Вопрос {}: {}".format(i + 1, q.keys()[0]) for i, q in enumerate(self.questions)])
+        ans = u"\n"
+        for i, q in enumerate(self.questions):
+            a = q.keys()[0]
+            if a:
+                ans += u"Вопрос {}: {}\n".format(i + 1, a)
+
+        return ans
 
     @need_game_session
     @need_game_context
