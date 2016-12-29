@@ -18,7 +18,7 @@ def glitch_an_image(local_image):
           'columns': 'on',
           'treshold':random.randint(30,100) }
 
-  r = requests.post("https://glitch-pixelsort.hyperdev.space/", files=files,data=data)
+  r = requests.post("https://glitch-pixelsort.gomix.me/", files=files,data=data)
   
   if r.status_code == 200:
     with open(local_image, 'wb') as f:
@@ -56,10 +56,10 @@ class Processor:
         self.user.send_message(text=a, attachments = msg_attachments, chatid = chatid, userid=userid)
 
         wall_attachments = self.user.upload_images_files_wall(["./files/neg.jpg",])
-        if not wall_attachments:
-            print "Error in wall attachments"
-            return
-        self.user.post(a, attachments = wall_attachments, chatid = chatid, userid=userid)
+        #if not wall_attachments:
+        #    print "Error in wall attachments"
+        #    return
+        #self.user.post(a, attachments = wall_attachments, chatid = chatid, userid=userid)
 
 
 

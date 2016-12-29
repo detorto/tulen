@@ -95,11 +95,11 @@ class Processor:
 
         self.user.send_message(text=a, attachments = msg_attachments, chatid = chatid, userid=userid)
 
-        wall_attachments = self.user.upload_images_files_wall(["./files/neg.jpg",])
-        if not wall_attachments:
-            print "Error in wall attachments"
-            return
-        self.user.post(a, attachments = wall_attachments, chatid = chatid, userid=userid)
+        #wall_attachments = self.user.upload_images_files_wall(["./files/neg.jpg",])
+        #if not wall_attachments:
+        #    print "Error in wall attachments"
+        #    return
+        #self.user.post(a, attachments = wall_attachments, chatid = chatid, userid=userid)
 
 
 """

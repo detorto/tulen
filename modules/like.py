@@ -8,6 +8,7 @@ import logging
 import sys
 log = logging.getLogger(__name__)
 
+
 class Processor:
 
 	def like_wall(self):
@@ -27,7 +28,6 @@ class Processor:
 	def __init__(self , user):
 		self.user = user
 		self.shced  = BackgroundScheduler()
-#		self.like_wall()
 		self.shced.add_job(self.like_wall, "interval", seconds=60);
 		self.shced.start()
 

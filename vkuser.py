@@ -17,6 +17,7 @@ logger = logging.getLogger('tulen')
 class VkUser(object):
 
     def __init__(self, config, update_stat, testmode = False):
+	random.seed(time.time())
         self.config = config
 
         self.update_stat_ = update_stat
@@ -52,15 +53,30 @@ class VkUser(object):
 
 
     def load_modules(self, mod_list):
-
-        self.modules = []
+        
+        self.unique_modules = []
+        self.global_modules = []
+        self.parallel_modules = []
 
         for module in mod_list:
+            data = module.split();
+            modif = "parallel"
+            module = data[0]
+            if len(data) > 1:
+                 modif = data[0]
+                 module = data[1]              
+              
             package = __import__("modules"+"."+module)
             processor = getattr(package, module)
             modprocessor = processor.Processor(self)
-            self.modules.append(modprocessor)
-            logger.info("Loaded module: [{}]".format("modules"+"."+module))
+            if modif == "unique":
+                self.unique_modules.append(modprocessor)
+            elif  modif == "global":
+                self.global_modules.append(modprocessor)
+            else:
+                self.parallel_modules.append(modprocessor)
+
+            logger.info("Loaded module: [{}] as {}".format("modules"+"."+module, modif))
 
     def module_file(self,  modname, filename):
         return os.path.join(self.config.get("modules_config_dir", "config"),modname, filename)
@@ -80,8 +96,23 @@ class VkUser(object):
             msg = msg.decode('utf-8')
             messages = [{"read_state":0, "id":"0","body":msg,"chat_id":2}]
         else:
-            operation = self.api.messages.get
-            args = {"count" : self.config["message_count"]}
+            code = """var k = 200;
+var messages = API.messages.get({"count": k});
+
+var ids = "";
+var a = k;  
+while (a >= 0) 
+{ 
+ids=ids+messages["items"][a]["id"]+",";
+a = a-1;
+}; 
+ids = ids.substr(0,ids.length-1);
+API.messages.markAsRead({"message_ids":ids});
+
+return messages;"""
+#            operation = self.api.messages.get
+            operation = self.api.execute
+            args = {"code" : code}
             ret = rated_operation( operation, args )
             messages = ret["items"]
 
@@ -95,7 +126,7 @@ class VkUser(object):
         return rated_operation(operation, args)
 
     def mark_messages(self, message_ids):
-        logger.debug("Marking messages: {}".format(",".join([str(a) for a in message_ids])))
+#        logger.debug("Marking messages: {}".format(",".join([str(a) for a in message_ids])))
         if self.testmode:
             return
 
@@ -105,8 +136,6 @@ class VkUser(object):
 
 
     def proc_msg_(self,message):
-        logger.debug("Processing msg {}".format(str(message)))
-        
         chatid = message.get("chat_id",None)
         userid = None
 
@@ -115,7 +144,7 @@ class VkUser(object):
         
         def thread_work(data):
             try:
-                data[0].process_message(message=data[1], chatid=data[2], userid=data[3])
+                return data[0].process_message(message=data[1], chatid=data[2], userid=data[3])
             except:
                 logger.error("Something wrong while processin {}".format(str(data)))
                 exc_type, exc_value, exc_traceback = sys.exc_info()
@@ -123,18 +152,36 @@ class VkUser(object):
                 self.update_stat("errors", 1)
 
         logger.debug("Mapping message between modules")
-        self.thread_pool_modules.map_async(thread_work, [(module, message, chatid, userid) for module in self.modules])
+        logger.debug("Unique modules:" + str(len(self.unique_modules)))       
+        for m in self.unique_modules:
+            if thread_work((m, message, chatid, userid)) == True:
+                logger.info("Unique module {} worked".format( m.__class__))
+                print "some is good"
+                return 
+ 	logger.info("Mapping message to parallel modules")
+        self.thread_pool_modules.map_async(thread_work, [(module, message, chatid, userid) for module in self.parallel_modules])
 
     def process_messages(self, messages):
-        ids = [msg["id"] for msg in messages]
-        self.mark_messages(ids)
 
         unread_messages = [ msg for msg in messages if msg["read_state"] == 0]
         if len(unread_messages) > 0:
             logger.info("Unread messages: {}".format("\n".join([m["body"].encode("utf8") for m in unread_messages])))
 
         if len(unread_messages) > 0:
-            logger.debug("Mapping message between msg processors [{}]".format(len(unread_messages)))
+            logger.debug("Processing global-modules messages events")
+
+            for m in unread_messages:
+                print "Processing message in global mods: ", len(self.global_modules)
+                for mod in self.global_modules:
+                     chatid = m.get("chat_id",None)
+                     userid = None
+
+                     if not chatid:
+                        userid = m.get("user_id", None)
+
+                     mod.process_message(m, chatid, userid)
+
+            logger.debug("Mapping messages between msg processors [{}]".format(len(unread_messages)))
             self.thread_pool_msg.map_async(self.proc_msg_, unread_messages)
             self.update_stat("processes",len(unread_messages))
 
@@ -158,6 +205,7 @@ class VkUser(object):
             args = {"chat_id" :chatid, "user_id" : userid, "message" : text, "attachment" : attachments}
         else:
             args = {"chat_id": chatid, "domain": userid, "message": text, "attachment": attachments}
+        args.update({"random_id": random.randint(0xfff, 0xffffff)})
         ret = rated_operation(op, args)
         
         if not ret:
@@ -214,9 +262,9 @@ class VkUser(object):
         op = self.api.photos.getMessagesUploadServer
         args = {}
         upserver = rated_operation(op, args)
-        
+        print "Got upserver"        
         ids = self.__upload_images(upserver, files)
-        
+        print "Uploaded images"
         attachments = []
         for i in ids:
             try:
@@ -224,7 +272,8 @@ class VkUser(object):
                 args = {"photo":i["photo"], "server":i["server"], "hash":i["hash"]}
 
                 resp = rated_operation(op, args)
-		print "Uload resp:",resp
+                print "Saved photos"
+                print "Uload resp:",resp
                 attachments.append("photo"+str(resp[0]["owner_id"])+"_"+str(resp[0]["id"]))
             except:
 
@@ -335,12 +384,19 @@ class VkUser(object):
             resp = rated_operation(op,args)
 
 
-    def friendStatus(self, user_id):
+    def friendStatus(self, user_ids):
         op = self.api.friends.areFriends
-        args = {"user_ids":user_id}
+        args = {"user_ids":user_ids}
         resp = rated_operation(op,args)
-        return resp[0]["friend_status"]
-    
+        return resp
+
+    def getUser(self,userid,fields,name_case):
+        op = self.api.users.get
+        args = {"user_ids":userid,"fields":fields,"name_case":name_case}
+        resp = rated_operation(op,args)
+        return resp[0]
+
+
     def friendAdd(self, user_id ):
         op = self.api.friends.add
         args = {"user_id":user_id}
