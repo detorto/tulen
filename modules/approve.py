@@ -32,7 +32,7 @@ class Processor:
             self.user.send_message(text=rep, chatid=chatid, userid=userid)
 
     def process_message(self, message, chatid, userid):
-        if chatid is None:
+        if chatid == None:
             self.respond(random.choice(self.config.keys()), chatid, userid)
             return 
 
@@ -45,5 +45,7 @@ class Processor:
             if prog.match(message_body):
                 print "-------------!!!111!"
                 self.respond(word, chatid, userid)
+                if self.config[word].get("unique",False):
+                    return 
                 print "--------!!!!"
 

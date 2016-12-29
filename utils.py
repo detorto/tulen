@@ -21,10 +21,8 @@ import sys
 def rate_limited(max_per_second, mode='wait', delay_first_call=False):
     """
     Decorator that make functions not be called faster than
-
     set mode to 'kill' to just ignore requests that are faster than the
     rate.
-
     set delay_first_call to True to delay the first call as well
     """
     lock = multiprocessing.Lock()
@@ -93,7 +91,7 @@ def RateLimited(maxPerSecond):
         return rateLimitedFunction
     return decorate
 
-from vk.exceptions import VkAPIError 
+from vk.exceptions import VkAPIError
 @RateLimited(2.5)  # 2 per second at most
 def rated_operation(operation, args):
     ret = None

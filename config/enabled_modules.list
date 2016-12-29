@@ -10,9 +10,10 @@ googleimg
 like
 pixelsort
 alarm
-hangman
-blackjack
-wiki
-like
-add_to_friends
-sea_battle
+unique censor
+unique hangman
+unique blackjack
+unique wiki
+global like
+global add_to_friends
+#unique sea_battle

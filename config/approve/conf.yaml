@@ -1,8 +1,28 @@
+.*\Bда\Z:
+    dict: yes.txt
+^.*\Bнет:
+    dict: no.txt
+.*тюлен.*что.*думаешь.*:
+    dict: opinions_think.txt
+    unique: true
+.*тюлен.*как.*относишься.*:
+    dict: opinions_think.txt
+    unique: true
+.*как.*дела.*:
+    dict: howyoudoing.txt
+.*расскажи.*о.*себе.*:
+    dict: my_life.txt
 .*тюлен.*:
     dict: dict.txt
+.*тюлень.*я.*тебя.*люблю.*:
+    dict: love.txt
 .*люблю.*тебя.*:
-    dict: dict2.txt
+    dict: love.txt
 .*ахах.*: 
     dict: dict3.txt
-
-
+.*тюлень.*крут.*:
+    dict: love.txt
+\Bбот:
+    dict: bot.txt
+.*что.*делае.*:
+    dict: doing.txt

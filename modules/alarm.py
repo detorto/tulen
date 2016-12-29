@@ -70,17 +70,18 @@ timeFormats = [{"format": "%d.%m.%y %H:%M:%S", "replace": None},
 
 class Processor:
     def __init__(self, vkuser):
-        self.alarms = {}
         self.config = yaml.load(open(vkuser.module_file("alarm", CONFIG_FILE)))
         self.user = vkuser
-        try:
-            self.load_alarms()
-        except Exception as e:
-            logger.warning("Alarm module Warning: Failed to load alarms, e - {}".format(e.message))
+        self.alarms = {}
 
     def process_message(self, message, chatid, userid):
         try:
             message_body = message["body"].lower().strip()
+            try:
+                self.load_alarms(chatid or userid)
+            except Exception as e:
+                logger.warning("Alarm module (user_id:{}): Failed to load alarms"
+                               .format(userid))
 
             if message_body.startswith(self.config["react_on"]):
                 try:
@@ -92,30 +93,23 @@ class Processor:
                     self.user.send_message(text=random.choice(self.config["responds_on_exception"]),
                                            chatid=chatid, userid=userid)
             elif message_body.startswith(self.config["help_request"]):
-                msg = u'''
-                        инструкция по будильнику
-
-                        тюлень, поставь будильник [на [дату|время] [время|дату]] [для user_id] [с текстом text]
-
-                        з.ы. параметр в скобках - опциональный
-
-                        примеры:
-                        тюлень, поставь будильник на 23:59:59 31.12.2016 для 574627483 с текстом иметь твою мамку
-
-                        тюлень, поставь будильник на 06:00 с текстом на работу пора блеать!
-                        '''
+                msg = u"инструкция по будильнику:\n" \
+                      u"тюлень, поставь будильник [на [дату|время] [время|дату]] [для user_id|domain] [с текстом text]\n" \
+                      u"з.ы. параметр в скобках - опциональный"
                 self.user.send_message(text=msg, chatid=chatid, userid=userid)
         except:
             return
 
-    def save_alarms(self):
-        with io.open("./files/alarms.context", 'w', encoding='utf-8') as f:
+    def save_alarms(self, chat_id):
+        with io.open("./files/alarms_{}.context".format(chat_id), 'w', encoding='utf-8') as f:
             f.write(unicode(json.dumps(self.alarms, ensure_ascii=False, indent=4, separators=(',', ': '),
                                        default=datetime_to_json)))
 
-    def load_alarms(self):
-        self.alarms = load_json("./files/alarms.context")
-        if self.alarms is not None:
+    def load_alarms(self, chat_id):
+        self.alarms = load_json("./files/alarms_{}.context".format(chat_id))
+        if not self.alarms:
+            self.alarms = {}
+        else:
             for alarm_id in self.alarms.keys():
                 if self.alarms[alarm_id]["time"] < datetime.now():
                     del self.alarms[alarm_id]
@@ -128,11 +122,6 @@ class Processor:
             .format(time.strftime("%d.%m.%Y %H:%M:%S"), message)
 
     def timeout(self, chat_id, user_id, time, message):
-        if (datetime.now() - time).total_seconds() > 0:
-            logger.warning(
-                "Alarm module (chat_id, user_id:{}): timeout with message {} happened not at the time - {}"
-                    .format(chat_id, user_id, message, time.strftime("%d.%m.%Y %H:%M:%S")))
-
         self.user.send_message(text=self.compose_message_on_timeout(time, message),
                                chatid=chat_id, userid=user_id)
 
@@ -199,26 +188,27 @@ class Processor:
 
         friends = self.user.get_all_friends(["domain"])
 
-        is_friend = receiver_id is None
-        if receiver_id is not None:
-            for friend in friends["items"]:
-                if isinstance(receiver_id, (int, long)):
-                    if friend["id"] == receiver_id:
-                        is_friend = True
-                        break
-                elif friend["domain"] == receiver_id:
+        is_friend = False
+        for friend in friends["items"]:
+            if isinstance(receiver_id, (int, long)):
+                if friend["id"] == receiver_id:
                     is_friend = True
                     break
+            elif friend["domain"] == receiver_id:
+                is_friend = True
+                break
 
-        if not is_friend:
+        if False == is_friend:
             self.user.send_message(text=random.choice(self.config["responds_on_not_friends"]),
                                    chatid=chat_id, userid=user_id)
             return
 
         if time is None:
-            time = datetime.now() + timedelta(seconds=20)
+            time = datetime.now() + timedelta(seconds=30)
         elif time < datetime.now():
-            time = time.replace(day=datetime.now().day + 1)
+            self.user.send_message(text=random.choice(self.config["responds_on_past_alarm"]),
+                                   chatid=chat_id, userid=user_id)
+            return
 
         new_alarm = {"chat_id": chat_id, "user_id": receiver_id, "time": time, "message": message}
 
@@ -231,7 +221,7 @@ class Processor:
 
         self.alarms[len(self.alarms)] = new_alarm
         self.set_alarm_clock(len(self.alarms) - 1)
-        self.save_alarms()
+        self.save_alarms(chat_id or user_id)
 
         self.user.send_message(text=random.choice(self.config["responds_on_ok"]),
                                chatid=chat_id, userid=user_id)

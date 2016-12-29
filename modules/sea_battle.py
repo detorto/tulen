@@ -20,6 +20,9 @@ class Processor:
     def start_game_session(self, msg):
         return self.game_manager.start_game_session(msg)
 
+    def start_questioned_game_session(self, msg):
+        return self.game_manager.start_questioned_game_session(msg)
+
     def show_commands(self, msg):
         return self.game_manager.show_commands(msg)
 
@@ -90,8 +93,12 @@ class Processor:
         if not user_id:
             user_id = message["user_id"]
 
+        # TODO: add game without questions, ability to play with seal
+
         with self.game_manager(user_id, chatid):
             logger.info(msg)
             response_text = self.handler(msg)()
             if response_text:
                 self.user.send_message(text=response_text, userid=userid, chatid=chatid)
+                return True
+        return False

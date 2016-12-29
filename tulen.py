@@ -1,12 +1,28 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
+
+#import vk
+
+import urllib2
+import requests
+
+import pkgutil
+import imp
+import os
+
+import threading
+import json
+import time
+
 from vkuser import VkUser
 import sys
 import traceback
 import io
 from optparse import OptionParser
 import yaml
+
+import multiline_formatter
 import logging
 
 LOG_SETTINGS = {
@@ -37,7 +53,7 @@ logging.config.dictConfig(LOG_SETTINGS)
 logger = logging.getLogger("tulen")
 
 
-def process(config, testmode, test_scenario=None):
+def process(config, testmode):
     
     def update_stat(stat, value):
         stats_file_path = config.get("stats_file", "statistics.yaml");
@@ -60,14 +76,14 @@ def process(config, testmode, test_scenario=None):
     
 
     
-    vkuser = VkUser(config, update_stat, testmode, test_scenario)
+    vkuser = VkUser(config, update_stat, testmode)
     logger.info("Created user api")
     logger.info("Starting processing... ")
     while True:
         try:
             vkuser.process_all_messages()
         except:
-            logger.error("Something wrong while processing dialogs")
+            logger.error("Something wrong while processin dialogs")
             exc_type, exc_value, exc_traceback = sys.exc_info()
             logger.error("\n".join(traceback.format_exception(exc_type, exc_value, exc_traceback)))
             if testmode:
@@ -80,20 +96,19 @@ def main():
                         help="configuration file to use", default="access.yaml", metavar="FILE.yaml")
     parser.add_option("-t", "--test", dest="testmode",
                         help="test mode", action="store_true", default=False)
-    parser.add_option("-s", "--scenario", dest="scenario_file",
-                      help="test mode by scenario from file", default="test_scenario.yaml", metavar="FILE.yaml")
 
 
     (options, args) = parser.parse_args()
     logger.info ( "*************Tulen vk.com bot****************" )
 
-    config = yaml.load(open(options.config))
-    test_scenario = yaml.load(open(options.scenario_file))
+    config = yaml.load(open(options.config));
+
+    
     
     logger.info("Loaded configuration ")
     logger.info(yaml.dump(config))
     
-    process(config, options.testmode, test_scenario)
+    process(config, options.testmode)
     
 if __name__ == '__main__':
     main()

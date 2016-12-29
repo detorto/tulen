@@ -98,11 +98,12 @@ MAP_ALREADY_UPLOADED_MSG = u"Карта уже загружена"
 SESSION_ALREADY_ACTIVE_MSG = u"Сессия игры уже активна для uid {}"
 SESSION_STARTED_MSG = u"Сессия игры Морской Бой начата для uid {}"
 SESSION_NOT_ACTIVE_MSG = u"Сессия не активна для uid {}"
-SESSION_STOPPED_MSG = u"Сессия игры Морксой бой остановлена для uid {}"
+SESSION_STOPPED_MSG = u"Сессия игры Морской бой остановлена для uid {}"
 # answers  =============================================================================================================
 
 # commands  ===================================================================
 start_game_processing_command = u"тюлень, хотим в морской бой"
+start_questioned_game_processing_command = u"тюлень, хотим в морской бой с вопросами"
 stop_game_processing_command = u"мы закончили морской бой"
 answer_command = u"ответ"
 gameRequest_command = u"играю с командой"
