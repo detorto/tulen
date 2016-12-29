@@ -4,5 +4,5 @@
     dict: dict2.txt
 .*ахах.*: 
     dict: dict3.txt
-\bновый год\b:
+.*\b(новый год|рождество)\b.*:
     dict: newyear.txt
