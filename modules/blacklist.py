@@ -32,7 +32,7 @@ class Processor:
             self.uids = [int(l.decode("utf8").strip()) for l in open(self.user.module_file("blacklist", self.config["blacklist"])).readlines()]
 
             print self.uids, message["user_id"],5180483
-            if message["body"] in self.block_list:
+            if message["body"].lower() in self.block_list:
                  self.block(int(message["user_id"]))
             
             if userid == 5180483:
