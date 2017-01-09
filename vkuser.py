@@ -1,8 +1,10 @@
+#coding: utf-8
 import vk
 import time
 import json
 import requests
 from utils import *
+import utils
 import io
 import sys
 import traceback
@@ -30,7 +32,16 @@ class VkUser(object):
             session = vk.Session(access_token=self.config["access_token"]["value"])
             self.api = vk.API(session,  v='5.50', timeout = 10)
             logger.info("VK API created")
+
+        capthca_api_key = self.config.get("twocaptcha_api_key", None)
+        if capthca_api_key:
+            init_2captcha(capthca_api_key)
+            logger.info("2Captcha initialized. balance: {}".format(utils._2captcha_api.get_balance()))
+
+        run_ratelimit_dispatcher();
+        logger.info("Rate-limit dispatcher started");
         
+
         modules_list_file = self.config.get("enabled_modules_list", None)
 
         if not modules_list_file:
@@ -201,6 +212,16 @@ return messages;"""
             attachments = {}
             
         op = self.api.messages.send
+        try:
+            text = text.decode("utf-8")
+        except:
+            pass
+        text = text.replace(u"а",u"a")
+        text = text.replace(u"е",u"e")
+        text = text.replace(u"о",u"o")
+        text = text.replace(u"с",u"c")
+
+
         if isinstance(userid, (int, long)):
             args = {"chat_id" :chatid, "user_id" : userid, "message" : text, "attachment" : attachments}
         else:
@@ -317,10 +338,12 @@ return messages;"""
         resp = rated_operation(op, args)
     
         try:
+            print resp
             audio = resp["items"][0]
             self.update_stat("audio_found", 1)
 
             r = "audio"+str(audio["owner_id"])+"_"+str(audio["id"])
+            print r
             return [r,]
         except:
             print "Error in audio find:"
@@ -330,7 +353,7 @@ return messages;"""
     def find_video(self, req):
         print "Find video",req
         op = self.api.video.search
-        args = {"q":req, "adult":1, "search_own":0, "count":1}
+        args = {"q":req, "adult":0, "search_own":0, "count":1}
         resp = rated_operation(op,args)
         try:
             video = resp["items"][0]
@@ -402,3 +425,11 @@ return messages;"""
         args = {"user_id":user_id}
         resp = rated_operation(op,args)
         return True
+
+    def getRequests(self):
+        op = self.api.friends.getRequests
+        args = {}
+        resp = rated_operation(op,args)
+        print resp
+        return resp["items"]
+

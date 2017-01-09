@@ -21,6 +21,8 @@ class Processor:
         print self.cens_dict
 
     def process_message(self, message, chatid, userid):
+
+        self.cens_dict = [l.decode("utf8").strip() for l in open(self.user.module_file("censor", self.config["cens_dict"])).readlines()]
 	
 	
         for word in self.cens_dict:

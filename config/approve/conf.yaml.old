@@ -4,17 +4,14 @@
     dict: yes.txt
 ^.*\Bнет:
     dict: no.txt
-.*тюлен.*что.*думаеш.*:
+.*тюлен.*что.*думаешь.*:
     dict: opinions_think.txt
-    unique: true
     private_use: true
 .*тюлен.*как.*относишься.*:
     dict: opinions_think.txt
-    unique: true
     private_use: true
 .*как.*дела.*:
     dict: howyoudoing.txt
-    private_use: true
 .*расскажи.*о.*себе.*:
     dict: my_life.txt
     private_use: true
@@ -25,15 +22,11 @@
     dict: love.txt
 .*люблю.*тебя.*:
     dict: love.txt
+    private_use: true
 .*ахах.*: 
     dict: dict3.txt
-.*новый.*год.*:
-    dict: newyear.txt
-.*рождество.*:
-    dict: newyear.txt
 .*тюлень.*крут.*:
     dict: love.txt
-    private_use: true
 \Bбот:
     dict: bot.txt
 .*что.*делае.*:
