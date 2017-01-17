@@ -4,6 +4,7 @@
 import logging
 import yaml
 import sea_battle_package as sbp
+import os
 
 logger = logging.getLogger('tulen')
 
@@ -14,7 +15,15 @@ class Processor:
     def __init__(self, vkuser):
         self.config = yaml.load(open(vkuser.module_file("sea_battle", CONFIG_FILE)))
         self.user = vkuser
-        self.game_manager = sbp.GameManager(vkuser, self.config["questions"])
+
+        directory = "./files/sea_battle"
+        try:
+            if not os.path.exists(directory):
+                os.makedirs(directory)
+        except Exception as e:
+            print "Exception occurred while trying to create directory {} - {}".format(directory, e.message)
+
+        self.game_manager = sbp.GameManager(vkuser, self.config["questions"], directory)
         print self.config
 
     def start_game_session(self, msg):
@@ -38,8 +47,14 @@ class Processor:
     def load_map(self, msg):
         return self.game_manager.load_map(msg)
 
+    def load_random_map(self, msg):
+        return self.game_manager.load_random_map(msg)
+
     def game_request(self, msg):
         return self.game_manager.game_request(msg)
+
+    def bot_game_request(self, msg):
+        return self.game_manager.bot_game_request(msg)
 
     def show_maps(self, msg):
         return self.game_manager.show_maps(msg)
@@ -61,12 +76,15 @@ class Processor:
 
         # map of request_text - handlers
         mapper = {sbp.start_game_processing_command: self.start_game_session,
+                  # sbp.start_questioned_game_processing_command: self.start_questioned_game_session,
                   sbp.stop_game_processing_command: self.stop_game_session,
-                  sbp.answer_command: self.answer,
+                  # sbp.answer_command: self.answer,
                   sbp.gameRequest_command: self.game_request,
+                  sbp.bot_gameRequest_command: self.bot_game_request,
                   sbp.attack_command: self.attack,
-                  sbp.questions_command: self.questions,
+                  # sbp.questions_command: self.questions,
                   sbp.loadMap_command: self.load_map,
+                  sbp.loadRandomMap_command: self.load_random_map,
                   sbp.registerTeam_command: self.register,
                   sbp.showTeams_command: self.show_teams,
                   sbp.showGameCommands_command: self.show_commands,

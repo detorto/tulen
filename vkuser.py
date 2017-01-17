@@ -17,9 +17,6 @@ logger = logging.getLogger('tulen')
 
 class VkUser(object):
     def __init__(self, config, update_stat, testmode=False):
-        self.unique_modules = []
-        self.global_modules = []
-        self.parallel_modules = []
         random.seed(time.time())
         self.config = config
 
@@ -56,8 +53,12 @@ class VkUser(object):
 
     def load_modules(self, mod_list):
 
+        self.unique_modules = []
+        self.global_modules = []
+        self.parallel_modules = []
+
         for module in mod_list:
-            data = module.split()
+            data = module.split();
             modif = "parallel"
             module = data[0]
             if len(data) > 1:
@@ -115,13 +116,6 @@ return messages;"""
             messages = ret["items"]
 
         self.process_messages(messages)
-
-    def get_all_friends(self, fields):
-        logger.debug("Retrieving messages")
-
-        operation = self.api.friends.get
-        args = {"fields": fields}
-        return rated_operation(operation, args)
 
     def mark_messages(self, message_ids):
         #        logger.debug("Marking messages: {}".format(",".join([str(a) for a in message_ids])))
@@ -401,3 +395,23 @@ return messages;"""
         args = {"user_id": user_id}
         resp = rated_operation(op, args)
         return True
+
+    def get_all_friends(self, fields):
+        operation = self.api.friends.get
+        args = {"fields": fields}
+        return rated_operation(operation, args)
+
+    def get_all_groups(self, user_id):
+        if isinstance(user_id, (int, long)):
+            pass
+        else:
+            pass
+
+        operation = self.api.groups.get
+        args = {"user_id": user_id, "extended": 1, "offset": 0, "count": 0}
+        return rated_operation(operation, args)
+
+    def get_group_byId(self, group_ids):
+        operation = self.api.groups.getById
+        args = {"group_ids": group_ids}
+        return rated_operation(operation, args)

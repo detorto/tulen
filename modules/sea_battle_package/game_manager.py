@@ -6,23 +6,26 @@ from ship_processing import Point as _Point
 from ship_processing import SHIP_RANKS_DICT as shipRanks
 from datetime import datetime
 import threading
-import os
 
 
 class GameManager:
-    def __init__(self, vk_user, questions):
+    def __init__(self, vk_user, questions, directory):
         self.lock = threading.Lock()
         self.vk_user = vk_user
         self.questions = questions
+        self.directory = directory
         if not self.questions or len(self.questions) == 0:
             self.questions = []
             for i in range(1, 201):
                 self.questions.append({i: str(i)})
         self.max_score = 20
 
+        # serialized data
         self.teams = {}
         self.games = []
         self.active_sessions = []
+
+        self.bot_turn = False
 
         self.load()
 
@@ -30,10 +33,11 @@ class GameManager:
         self.uid = uid
         self.chat_id = chat_id
         self.load()
+
         team_name = self.get_team_name()
         op_team_name = self.get_opponent_name(team_name)
         op_cap_uid = self.get_team_cap_uid(op_team_name)
-        self.game_context = GameContext(uid, self.max_score, team_name, uid, op_team_name, op_cap_uid)
+        self.game_context = GameContext(uid, self.max_score, self.directory, self.is_bot_game(), team_name, uid, op_team_name, op_cap_uid)
         if team_name and not self.game_context.this_team:
             self.game_context.this_team = self.game_context.create_team(team_name, self.uid)
 
@@ -46,6 +50,7 @@ class GameManager:
         self.lock.acquire()
 
     def __exit__(self, type, value, traceback):
+        self.process_bot_turn()
         if self.check_winner():
             self.stop_game_session()
         self.save()
@@ -57,18 +62,22 @@ class GameManager:
     @need_no_game_session
     def start_game_session(self, message=""):
         self.active_sessions.append({"session_uid": self.uid,
-                                     "session_started": datetime.now().strftime("%d.%m.%Y %H:%M:%S")})
+                                     "session_started": datetime.now().strftime("%d.%m.%Y %H:%M:%S"),
+                                     "questioned_game": False})
         msg = SESSION_STARTED_MSG.format(self.uid)
         msg += u"\n\nДля игры вам необходимо зарегистрировать команду, загрузить карту, " \
                u"выбрать оппонента из числа зарегистрированных команд, дождаться начала игры с ним, " \
-               u"после чего начинать атаку на корабли оппонента, предварительно отвечая на вопросы игры.\n\n" \
+               u"после чего начинать атаку на корабли оппонента.\n\n" \
+               u"Или вы можете играть со мной в качестве оппонента, тогда вместо команды оппонента вам нужно выбрать меня." \
                u"Пример очередности ваших команд:\n" \
                u"1. я капитан команды ИМЯ_КОМАНДЫ\n" \
                u"2. загрузи карту МАССИВ_КАРТЫ\n" \
+               u"Или, если хотите чтобы я сгенерил вам карту:\n" \
+               u"2. загрузи рандомную карту\n" \
                u"3. играю с командой ИМЯ_КОМАНДЫ_ОППОНЕНТА\n" \
-               u"4. вопросы\n" \
-               u"5. ответ НОМЕР_ВОПРОСА ОТВЕТ\n" \
-               u"6. атакую КООРДИНАТА_X,КООРДИНАТА_Y\n" \
+               u"Или, если хотите играть со мной:\n" \
+               u"3. играю с тюленем\n" \
+               u"4. атакую КООРДИНАТА_X,КООРДИНАТА_Y\n" \
                u"И так далее до окончания игры. Чтобы покинуть игру напишите Мы закончили морской бой\n\n" \
                u"Список игровых команд выводится по команде Инструкция"
         return msg
@@ -76,7 +85,8 @@ class GameManager:
     @need_no_game_session
     def start_questioned_game_session(self, message=""):
         self.active_sessions.append({"session_uid": self.uid,
-                                     "session_started": datetime.now().strftime("%d.%m.%Y %H:%M:%S")})
+                                     "session_started": datetime.now().strftime("%d.%m.%Y %H:%M:%S"),
+                                     "questioned_game": True})
         msg = SESSION_STARTED_MSG.format(self.uid)
         msg += u"\n\nДля игры вам необходимо зарегистрировать команду, загрузить карту, " \
                u"выбрать оппонента из числа зарегистрированных команд, дождаться начала игры с ним, " \
@@ -84,6 +94,8 @@ class GameManager:
                u"Пример очередности ваших команд:\n" \
                u"1. я капитан команды ИМЯ_КОМАНДЫ\n" \
                u"2. загрузи карту МАССИВ_КАРТЫ\n" \
+               u"Или, если хотите чтобы я сгенерил вам карту:\n" \
+               u"2. загрузи рандомную карту\n" \
                u"3. играю с командой ИМЯ_КОМАНДЫ_ОППОНЕНТА\n" \
                u"4. вопросы\n" \
                u"5. ответ НОМЕР_ВОПРОСА ОТВЕТ\n" \
@@ -110,12 +122,15 @@ class GameManager:
     def show_commands(self, message=""):
         answer = u"команды игры Морской Бой:\n"
         answer += start_game_processing_command + u"\n"
+        # answer += start_questioned_game_processing_command + u"\n"
         answer += registerTeam_command + u"\n"
         answer += loadMap_command + u"\n"
-        answer += questions_command + u"\n"
+        answer += loadRandomMap_command + u"\n"
+        # answer += questions_command + u"\n"
         answer += showTeams_command + u"\n"
         answer += gameRequest_command + u"\n"
-        answer += answer_command + u"\n"
+        answer += bot_gameRequest_command + u"\n"
+        # answer += answer_command + u"\n"
         answer += attack_command + u"\n"
         answer += showMaps_command + u"\n"
         answer += showGameCommands_command + u"\n"
@@ -129,7 +144,7 @@ class GameManager:
             answer += team_name + u"\n"
         return answer
 
-    @need_game_session
+    @need_questioned_game_session
     @need_game_context
     @need_registration
     def get_questions(self, message=""):
@@ -153,6 +168,20 @@ class GameManager:
     @need_game_session
     @need_game_context
     @need_registration
+    @need_game_not_started
+    def load_random_map(self, message):
+        field = Team.generate_random_map()
+        if len(field) != MAP_SIZE * MAP_SIZE:
+            return field
+        resp = self.game_context.this_team.parse_fields(field)
+        if resp == GOOD_MAP_MSG:
+            return u"Загрузил карту:\n" + Team.print_fields_s(field, generate_field_of_shots(), False)
+        else:
+            return resp + u"\n" + Team.print_fields_s(field, generate_field_of_shots(), False)
+
+    @need_game_session
+    @need_game_context
+    @need_registration
     @need_valid_map
     @need_game_not_started
     def game_request(self, message):
@@ -164,7 +193,16 @@ class GameManager:
 
             return self.start_game_with(op_team_name)
         except Exception as e:
-            print "Exception occurred while parsing opponent team name"
+            print "Exception occurred while parsing opponent team name - {}".format(e.message)
+            return u"Эммм, что-то пошло не так =/ Попробуйте ещё раз"
+
+    @need_game_session
+    @need_game_context
+    @need_registration
+    @need_valid_map
+    @need_game_not_started
+    def bot_game_request(self, message):
+        return self.start_game_with_bot()
 
     @need_game_session
     @need_game_context
@@ -179,7 +217,7 @@ class GameManager:
             field += gc.opponent.print_fields(True)
         return field
 
-    @need_game_session
+    @need_questioned_game_session
     @need_game_context
     @need_registration
     @need_valid_map
@@ -207,28 +245,63 @@ class GameManager:
     @need_opponent_set
     @need_game_started
     @need_question_answered
-    def attack(self, message):
-        coords_str = message[message.index(attack_command) + len(attack_command):]
-        hit_point = _Point.try_parse(coords_str)
+    def attack(self, message, bot_game=False):
+        gc = self.game_context
+
+        if bot_game:
+            team = gc.this_team
+            self.send_message(self.uid, self.chat_id, u"Стреляет тюлень...\n")
+            hit_point = _Point(random.randint(0, MAP_SIZE - 1), random.randint(0, MAP_SIZE - 1), -1, -1)
+            while self.is_shot_was_made(hit_point, team):
+                hit_point = _Point(random.randint(0, MAP_SIZE - 1), random.randint(0, MAP_SIZE - 1), -1, -1)
+        else:
+            team = gc.opponent
+            coords_str = message[message.index(attack_command) + len(attack_command):]
+            hit_point = _Point.try_parse(coords_str)
+
         if hit_point and not isinstance(hit_point, _Point):
             return hit_point
         if hit_point:
-            gc = self.game_context
-            shot = gc.opponent.field_of_shots[hit_point.x + hit_point.y * MAP_SIZE]
-            if shot == '.' or shot == 'X':
-                return u"Вы сюда ужо стреляли, повнимательней"
-            for rank in shipRanks:
-                for ship in gc.opponent.ships[rank]:
-                    was_hit, msg = ship.try_attack(hit_point)
-                    if was_hit:
-                        gc.opponent.field_of_shots[hit_point.x + hit_point.y * MAP_SIZE] = 'X'
-                        self.shot_was_made(was_hit)
-                    if msg:
-                        return msg
-            gc.opponent.field_of_shots[hit_point.x + hit_point.y * MAP_SIZE] = '.'
+            result, ship = self.process_shot(hit_point, team)
+            self.process_drawn_ships(result, ship, team)
+            if result:
+                return result
             self.shot_was_made(False)
-            return u"Сорян, мимо"
-        return u"Ты втираешь мне какую-то дичь! (вы ошиблись с форматом координат)"
+            return SHOT_MISSED
+        return SHOT_WRONG_COORDINATES
+
+    @staticmethod
+    def process_drawn_ships(attack_result, ship, team):
+        if attack_result == SHOT_DRAWN_SHIP:
+            for point in ship.points:
+                team.field_of_shots[point.x + point.y * MAP_SIZE] = 'X'
+
+    @staticmethod
+    def is_shot_was_made(hit_point, team):
+        shot = team.field_of_shots[hit_point.x + hit_point.y * MAP_SIZE]
+        return shot == '.' or shot == 'X'
+
+    def process_shot(self, hit_point, team):
+        if self.is_shot_was_made(hit_point, team):
+            return SHOT_ALREADY_MADE, None
+        for rank in shipRanks:
+            for ship in team.ships[rank]:
+                was_hit, msg = ship.try_attack(hit_point)
+                if was_hit:
+                    team.field_of_shots[hit_point.x + hit_point.y * MAP_SIZE] = 'X' if msg == SHOT_DRAWN_SHIP else 'x'
+                    self.shot_was_made(was_hit)
+                if msg:
+                    return msg, ship
+        team.field_of_shots[hit_point.x + hit_point.y * MAP_SIZE] = '.'
+        return None, None
+
+    def process_bot_turn(self):
+        if not self.bot_turn:
+            return
+        result = self.attack("", True)
+        self.send_message(self.uid, self.chat_id, result)
+        self.send_message(self.uid, self.chat_id, self.show_maps(""))
+        self.bot_turn = False
 
     @staticmethod
     def save_game_results(file_name, data):
@@ -270,20 +343,22 @@ class GameManager:
                         "game_started": game["game_started_datetime"],
                         "game_finished": game_finished}
 
-                file_name = "./files/{}_vs_{}_{}.yaml".format(winner.cap_uid, looser.cap_uid, game_finished)
+                file_name = self.directory + "/{}_vs_{}_{}.yaml".format(winner.cap_uid, looser.cap_uid, game_finished)
 
                 GameManager.save_game_results(file_name, data)
 
-                self.send_message(self.teams[winner_name]["team_uid"],
-                                  self.teams[winner_name]["team_chat_id"],
-                                  u"Это победа! Ай малаца")
-                self.send_message(self.teams[looser.team_name]["team_uid"],
-                                  self.teams[looser.team_name]["team_chat_id"],
-                                  u"Луууузеерыы! (Вы продули...=\)")
+                if not winner.bot_game:
+                    self.send_message(self.teams[winner_name]["team_uid"],
+                                      self.teams[winner_name]["team_chat_id"],
+                                      u"Это победа! Ай малаца")
+                if not looser.bot_game:
+                    self.send_message(self.teams[looser.team_name]["team_uid"],
+                                      self.teams[looser.team_name]["team_chat_id"],
+                                      u"Луууузеерыы! (Вы продули...=\)")
 
                 self.active_sessions = [session for session in self.active_sessions if
-                                        session["session_uid"] != self.teams[winner_name]["team_uid"] and
-                                        session["session_uid"] != self.teams[looser.team_name]["team_uid"]]
+                                        (not winner.bot_game and session["session_uid"] != self.teams[winner_name]["team_uid"]) and
+                                        (not looser.bot_game and session["session_uid"] != self.teams[looser.team_name]["team_uid"])]
 
             if i >= 0:
                 self.games = [g for j, g in enumerate(self.games) if j != i]
@@ -309,6 +384,7 @@ class GameManager:
         gc.this_team.question_answered = False
         gc.this_team.score += gc.this_team.score_per_hit if hit else 0
         gc.this_team.score_per_hit = 0
+        self.bot_turn = self.is_bot_game()
         print "Team uid {} score - {}".format(gc.this_team.cap_uid, gc.this_team.score)
 
     def remove_game_data(self, team_name=None):
@@ -324,6 +400,12 @@ class GameManager:
         except Exception as e:
             print "Exception while deleting team {} - {}".format(team_name, e.message)
             return False
+
+    def is_bot_game(self):
+        game, i = self.get_game_data()
+        if game:
+            return try_get_data(game, "bot_game")
+        return False
 
     def get_game_data(self, uid=None, team_name=None, this_team_only=False, only_opponent=False):
         team_name = self.get_team_name(uid) if not team_name else team_name
@@ -363,7 +445,7 @@ class GameManager:
 
     def load(self):
         try:
-            with open("./files/seabattle_game.yaml", 'r') as stream:
+            with open(self.directory + "/seabattle_game.yaml", 'r') as stream:
                 data = yaml.load(stream)
                 self.teams = data["teams"]
                 self.games = data["games"]
@@ -376,30 +458,54 @@ class GameManager:
             print e.message
 
     def save(self):
-        with open('./files/seabattle_game.yaml', 'w') as outfile:
+        with open(self.directory + "/seabattle_game.yaml", 'w') as outfile:
             self.check_games()
             data = {"teams": self.teams, "games": self.games, "active_sessions": self.active_sessions}
             yaml.dump(data, outfile, default_flow_style=True)
 
     def session_is_active(self):
         if not self.uid or len(self.active_sessions) == 0:
-            return False
-        active = False
+            return False, False
         try:
             for session in self.active_sessions:
                 if session["session_uid"] == self.uid:
-                    active = True
-                    break
+                    return True, bool(session["questioned_game"])
         except Exception as e:
             print "Exception occurred while checking session - {}".format(e.message)
-            active = False
-        return active
+        return False, False
 
     def send_message(self, uid, chat_id, message):
         if chat_id:
             self.vk_user.send_message(text=message, userid=None, chatid=chat_id)
         else:
             self.vk_user.send_message(text=message, userid=uid, chatid=None)
+
+    def generate_bot_field(self):
+        while True:
+            field = Team.generate_random_map()
+            if len(field) != MAP_SIZE * MAP_SIZE:
+                continue
+            resp = self.game_context.opponent.parse_fields(field)
+            if resp == GOOD_MAP_MSG:
+                return field
+
+    def start_game_with_bot(self):
+        gc = self.game_context
+        t_team_name = gc.this_team_name
+        gc.bot_game = True
+        gc.op_team_name = "tulen"
+        gc.opponent = gc.create_team(gc.op_team_name, gc.op_team_name, True)
+        gc.opponent.field = self.generate_bot_field()
+
+        game = {"team_name": t_team_name,
+                "opponent_team_name": gc.op_team_name,
+                "bot_game": True,
+                "game_started_datetime": datetime.now().strftime("%d.%m.%Y %H:%M:%S"),
+                "game_started": True,
+                "winner": ""}
+
+        self.games.append(game)
+        return GAME_STARTED_WITH_BOT_MSG
 
     def start_game_with(self, op_team_name):
         gc = self.game_context
@@ -434,6 +540,7 @@ class GameManager:
 
         game = {"team_name": t_team_name,
                 "opponent_team_name": op_team_name,
+                "bot_game": False,
                 "game_started": False,
                 "winner": "",
                 "game_started_datetime": None}
@@ -490,4 +597,6 @@ class GameManager:
     def get_team_cap_uid(self, team_name):
         if not team_name or not self.teams:
             return ""
+        if self.is_bot_game():
+            return "tulen"
         return try_get_data(self.teams[team_name], "team_uid")

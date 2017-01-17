@@ -3,16 +3,19 @@
 
 import ship_processing as sp
 from utils import *
+import random
+
 
 def generate_field_of_shots():
-    return ['_' for i in range(MAP_SIZE*MAP_SIZE)]
+    return ['_' for i in range(MAP_SIZE * MAP_SIZE)]
 
 
 class Team:
-    def __init__(self, cap_uid, team_name, score, field, field_of_shots,
+    def __init__(self, cap_uid, team_name, bot_game, score, field, field_of_shots,
                  shots_left, score_per_hit, question_answered, answered_questions):
         self.cap_uid = cap_uid if cap_uid else ""
         self.team_name = team_name if team_name else ""
+        self.bot_game = bot_game
         self.score = score if score else 0
         self.field = field if field else []
         self.field_of_shots = field_of_shots if field_of_shots and len(field_of_shots) else generate_field_of_shots()
@@ -46,7 +49,7 @@ class Team:
                     count += 1
         return count
 
-    def clear_ships(self):
+    def reset_ships(self):
         self.field_parsed = False
         self.ships = {}
         self.ships_count = 0
@@ -60,67 +63,174 @@ class Team:
     # prints either self field merged with shots made at this field
     # or only field of shots
     def print_fields(self, only_shots):
-        field = u""
-        to_print = self.field_of_shots
+        return Team.print_fields_s(self.field, self.field_of_shots, only_shots)
+
+    @staticmethod
+    def print_fields_s(field, of_shots, only_shots):
+        txt_field = u""
 
         for i in range(MAP_SIZE):
             for j in range(MAP_SIZE):
                 printed = not only_shots
 
                 if not only_shots:
-                    printed = to_print[j + i * MAP_SIZE] == '_' and self.field[j + i * MAP_SIZE] != '0'
+                    printed = of_shots[j + i * MAP_SIZE] == '_' and field[j + i * MAP_SIZE] != '0'
                     if printed:
-                        field += str(self.field[j + i * MAP_SIZE]) + u"\t"
+                        txt_field += str(field[j + i * MAP_SIZE]) + u"\t"
 
                 if not printed:
-                    field += to_print[j + i * MAP_SIZE] + u"\t"
+                    txt_field += of_shots[j + i * MAP_SIZE] + u"\t"
 
-            field += u"\n"
+            txt_field += u"\n"
+        return txt_field
+
+    @staticmethod
+    def generate_random_map():
+        ships = {}
+        field = []
+        field_points = []
+        for i in range(MAP_SIZE):
+            for j in range(MAP_SIZE):
+                field.append(str(0))
+
+        for rank in sp.SHIP_RANKS_DICT:
+            ships[rank] = []
+            for ship in range(sp.SHIP_RANKS_DICT[rank]):
+                ships[rank].append(sp.Ship(rank))
+            for ship in ships[rank]:
+                directions = [Direction.UP, Direction.DOWN, Direction.RIGHT, Direction.LEFT]
+                direction = Direction.NONE
+                random.shuffle(directions)
+
+                loop_count = 0
+                non_random_loop_count = 200
+
+                while not ship.is_full():
+                    loop_count += 1
+
+                    i = random.randint(0, MAP_SIZE - 1)
+                    j = random.randint(0, MAP_SIZE - 1)
+                    if loop_count >= non_random_loop_count:
+                        i = loop_count % MAP_SIZE
+                        j = loop_count % MAP_SIZE
+
+                        non_random_point = sp.Point(j, i, rank, False)
+                        while not sp.Point.can_add_point_to_field(field_points, non_random_point):
+                            if j >= MAP_SIZE:
+                                j = 0
+                                i += 1
+                            else:
+                                j += 1
+                            if i >= MAP_SIZE:
+                                i = MAP_SIZE - 1
+                                j = MAP_SIZE - 1
+                                break
+                            non_random_point = sp.Point(j, i, rank, False)
+
+                    if loop_count > non_random_loop_count + MAP_SIZE * MAP_SIZE * 3:
+                        return u"Сорян, не смог загрузить карту, генератор сломался =(\nПопробуй ещё разок\n" + \
+                               Team.print_fields_s(field, generate_field_of_shots(), False)
+
+                    if rank > 1 and len(ship.points) > 0:
+                        if not len(directions) and not direction:
+                            ship.points = []
+                            directions = [Direction.UP, Direction.DOWN, Direction.RIGHT, Direction.LEFT]
+                            direction = Direction.NONE
+                            random.shuffle(directions)
+                            continue
+
+                        if not direction:
+                            direction = directions.pop()
+                        last_point = ship.points[len(ship.points) - 1]
+
+                        if Direction.UP == direction:
+                            i = last_point.y - 1
+                            j = last_point.x
+                        elif Direction.DOWN == direction:
+                            i = last_point.y + 1
+                            j = last_point.x
+                        elif Direction.RIGHT == direction:
+                            i = last_point.y
+                            j = last_point.x + 1
+                        elif Direction.LEFT == direction:
+                            i = last_point.y
+                            j = last_point.x - 1
+
+                    point = sp.Point(j, i, rank, False)
+                    if not sp.Point.fits_field(point) or point in field_points or not sp.Point.can_add_point_to_field(field_points, point):
+                        if len(ship.points) > 1:
+                            ship.points = [ship.points[0]]
+                        direction = Direction.NONE
+                        continue
+
+                    try:
+                        if ship.try_add_point(point):
+                            if ship.is_full():
+                                for new_point in ship.points:
+                                    field_points.append(new_point)
+                                    field[new_point.x + new_point.y * MAP_SIZE] = str(rank)
+                        else:
+                            if len(ship.points) > 1:
+                                ship.points = [ship.points[0]]
+                            direction = Direction.NONE
+                            continue
+                    except Exception as e:
+                        if isinstance(e, sp.MapParseException):
+                            if len(ship.points) > 1:
+                                ship.points = [ship.points[0]]
+                            direction = Direction.NONE
+                            continue
+                        else:
+                            raise
+
         return field
 
     def parse_fields(self, field):
-        self.clear_ships()
+        self.reset_ships()
         if field is None:
             return u"Поле пустое"
         if len(field) != MAP_SIZE * MAP_SIZE:
-            print "parse_fields: map size is wrong = {}".format(len(self.field))
-            msg = u"Размер поля не верен! Должно быть ровно {} точек\n".format(MAP_SIZE * MAP_SIZE)
+            msg = u"Размер поля неверен! Должно быть ровно {} точек\n".format(MAP_SIZE * MAP_SIZE)
             msg += Team.get_ship_instruction()
             return msg
         try:
             ships_filled = 0
             for i in range(MAP_SIZE):
                 for j in range(MAP_SIZE):
+
                     was_hit = False
                     if self.field_of_shots is not None and len(self.field_of_shots) == len(field):
-                        # _ for unknown cell, . for missed shot, X for hit ship
-                        was_hit = self.field_of_shots[j + i * MAP_SIZE] == 'X'
+                        # '_' for unknown cell, '.' for missed shot, 'x' for hit ship, 'X" for drawn ship
+                        was_hit = self.field_of_shots[j + i * MAP_SIZE] == 'X' or self.field_of_shots[j + i * MAP_SIZE] == 'x'
+
                     point = sp.Point(j, i, int(field[j + i * MAP_SIZE]), was_hit)
                     if not point.value:
                         continue
+
                     for rank in sp.SHIP_RANKS_DICT:
                         point_added = False
                         for ship in self.ships[rank]:
                             try:
-                                if ship.add_point(point):
+                                if ship.try_add_point(point):
                                     point_added = True
                                     if ship.is_full():
+                                        for ship_point in ship.points:
+                                            self.points.append(ship_point)
+
                                         ships_filled += 1
                                     break
                             except Exception as e:
                                 if isinstance(e, sp.MapParseException):
                                     return e.value
-                                print "Exception while parsing filed: {}".format(e.message)
-                                return e.message
+                                raise
                         if point_added:
-                            self.points.append(point)
                             break
                         elif point.value == rank:
                             return u"Кораблей ранга {} слишком много!".format(rank)
 
             if ships_filled != self.ships_count:
-                msg = u"Не удалось расставить все корабли! " \
-                       u"Проверьте ваше поле на наличие всех необходимых кораблей и точек в них\n"
+                msg = u"Не удалось расставить все корабли!\n" \
+                      u"Проверьте ваше поле на наличие всех необходимых кораблей и точек в них\n"
                 msg += Team.get_ship_instruction()
                 return msg
 
@@ -128,9 +238,9 @@ class Team:
             self.field = field
             return GOOD_MAP_MSG
         except Exception as e:
-            print "Exception occurred while parsing field - {}" \
-                .format(e.message)
-            return e.message
+            if isinstance(e, sp.MapParseException):
+                return e.value
+            raise
 
     @classmethod
     def try_serialize(cls, obj):
@@ -144,6 +254,7 @@ class Team:
     def serialize(self):
         return {"cap_uid": self.cap_uid,
                 "team_name": self.team_name,
+                "bot_game": self.bot_game,
                 "score": self.score,
                 "field": self.field,
                 "field_of_shots": self.field_of_shots,
@@ -158,6 +269,7 @@ class Team:
             return None
         return cls(try_get_data(data, "cap_uid"),
                    try_get_data(data, "team_name"),
+                   try_get_data(data, "bot_game"),
                    try_get_data(data, "score"),
                    try_get_data(data, "field"),
                    try_get_data(data, "field_of_shots"),

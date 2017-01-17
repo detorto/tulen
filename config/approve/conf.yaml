@@ -20,6 +20,8 @@
     dict: love.txt
 .*ахах.*: 
     dict: dict3.txt
+.*(новый год|рождество|нг|новогод.*|(е|ё)лка).*:
+    dict: newyear.txt
 .*тюлень.*крут.*:
     dict: love.txt
 \Bбот:

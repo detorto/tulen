@@ -3,7 +3,7 @@
 
 from utils import Orientation
 from ast import literal_eval as make_tuple
-from game_constants import MAP_SIZE
+from game_constants import *
 
 SHIP_RANKS_DICT = {1: 4, 2: 3, 3: 2, 4: 1}
 
@@ -14,6 +14,10 @@ class Point:
         self.y = y
         self.value = value
         self.was_hit = was_hit
+
+    @staticmethod
+    def fits_field(point):
+        return 0 <= point.x < MAP_SIZE and 0 <= point.y < MAP_SIZE
 
     @classmethod
     def try_parse(cls, coords_str):
@@ -32,6 +36,37 @@ class Point:
         except Exception as e:
             print "Error!! Couldn't parse a point from coordinates! - {}".format(e.message)
             return None
+
+    @staticmethod
+    def are_points_close(p1, p2):
+        rx = range(p2.x - 1, p2.x + 2, 1)
+        ry = range(p2.y - 1, p2.y + 2, 1)
+        return p1.x in rx and p1.y in ry
+
+    @staticmethod
+    def are_skewed_oriented(p1, p2):
+        rx = range(p2.x - 1, p2.x + 2, 2)
+        ry = range(p2.y - 1, p2.y + 2, 2)
+        return p1.x in rx and p1.y in ry
+
+    @staticmethod
+    def get_points_displacement(p1, p2):
+        if p1 == p2:
+            return True, Orientation.NONE
+        if not Point.are_points_close(p1, p2):
+            return False, Orientation.NONE
+        if Point.are_skewed_oriented(p1, p2):
+            return True, Orientation.SKEWED
+        if p1.x in range(p2.x - 1, p2.x + 2, 2) and p1.y == p2.y:
+            return True, Orientation.HORIZONTAL
+        return True, Orientation.VERTICAL
+
+    @staticmethod
+    def can_add_point_to_field(field, new_point):
+        for added_point in field:
+            if Point.are_points_close(new_point, added_point):
+                return False
+        return True
 
     def __str__(self):
         return u"Point ({}, {}) with value {}".format(self.x, self.y, self.value)
@@ -55,7 +90,6 @@ class Ship:
     def __init__(self, rank):
         self.rank = rank
         self.points = []
-        # self.hit_points = hit_points
         self.orientation = Orientation.NONE
 
     def __str__(self):
@@ -78,64 +112,41 @@ class Ship:
         for i, p in enumerate(self.points):
             if p == hit_point:
                 if p.was_hit:
-                    return False, u"Вы сюда ужо стреляли, повнимательней"
+                    return False, SHOT_ALREADY_MADE
                 p.was_hit = True
                 self.points[i] = p
                 if self.check_dead():
-                    return True, u"Корабль потоплен!"
-                return True, u"Ай малаца, попал! (корабль ещё жив)"
+                    return True, SHOT_DRAWN_SHIP
+                return True, SHOT_SHIP_WAS_HIT
         return False, None
 
-    @staticmethod
-    def get_points_orientation(new_point, placed_point):
-        range_x = range(placed_point.x - 1, placed_point.x + 2, 2)
-        range_y = range(placed_point.y - 1, placed_point.y + 2, 2)
-        if new_point.x in range_x and new_point.y in range_y:
-            # skewed orientations ain't supported!
-            return Orientation.NONE
+    def try_add_point(self, point):
+        if point.value == self.rank:
+            if not len(self.points):
+                self.points.append(point)
+                return True
 
-        if new_point.x in range_x:
-            return Orientation.HORIZONTAL
-        if new_point.y in range_y:
-            return Orientation.VERTICAL
-        return Orientation.NONE
-
-    def can_place_point(self, point, p):
-        orientation = self.get_points_orientation(point, p)
-        if not orientation:
-            return None
-        if self.orientation and self.orientation != orientation:
-            return None
-        return orientation
-
-    def this_ship_point(self, point):
-        if point.value != self.rank:
+            for p in self.points:
+                close, orientation = Point.get_points_displacement(point, p)
+                if not close:
+                    continue
+                if orientation == Orientation.SKEWED:
+                    raise MapParseException(u"Нельзя ставить точки наискосок, алё гараж!")
+                if not orientation:
+                    raise MapParseException(u"Что-то пошло не так, {} уже добавлена... ".format(point))
+                if self.orientation and orientation != self.orientation:
+                    raise MapParseException(u"Корабли не бывают изогнутыми, во чо...")
+                if not self.orientation:
+                    self.orientation = orientation
+                if self.orientation and orientation == self.orientation:
+                    if self.is_full():
+                        raise MapParseException(u"Слишком много точек в корабле ранга {}".format(self.rank))
+                    self.points.append(point)
+                    return True
             return False
-
-        belongs = len(self.points) == 0
-
-        for p in self.points:
-            orientation = self.can_place_point(point, p)
-            if orientation:
-                self.orientation = orientation
-                belongs = True
-                break
-        return belongs
-
-    def can_place_another_ship(self, point):
-        for p in self.points:
-            if point.x in range(p.x - 1, p.x + 2, 2) and point.y in range(p.y - 1, p.y + 2, 2):
-                return False
-        return True
-
-    def add_point(self, point):
-        if self.this_ship_point(point):
-            if len(self.points) >= self.rank:
-                return False
-                # raise MapParseException(u"слишком много точек в корабле ранга {}".format(str(self.rank)))
-            self.points.append(point)
-            return True
-
-        if not self.can_place_another_ship(point):
-            raise MapParseException(u"корабли стоят слишком близко для ранга {}".format(self.rank))
-        return False
+        else:
+            for p in self.points:
+                close, orientation = Point.get_points_displacement(point, p)
+                if close:
+                    raise MapParseException(u"Точка ({},{}) слишком близко к точке ({},{})".format(point.x, point.y, p.x, p.y))
+            return False
