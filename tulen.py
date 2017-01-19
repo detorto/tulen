@@ -1,29 +1,17 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-
-# import vk
-
-import urllib2
-import requests
-
-import pkgutil
-import imp
-import os
-
-import threading
-import json
-import time
-
 from vkuser import VkUser
-import sys
-import traceback
-import io
 from optparse import OptionParser
 import yaml
-
-import multiline_formatter
 import logging
+import traceback
+import io
+
+from multiprocessing import Process, freeze_support
+
+# from utils import *
+# from vkuser import *
 
 LOG_SETTINGS = {
     'version': 1,
@@ -107,4 +95,8 @@ def main():
 
 
 if __name__ == '__main__':
+    # multiprocessing.freeze_support()
+    freeze_support()
     main()
+    # p = Process(target=main)
+    # p.start()

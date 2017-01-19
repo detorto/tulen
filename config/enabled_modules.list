@@ -1,19 +1,20 @@
+dump_photos
+unique blacklist
 ascii_img
 approve
 reply
-vkmusic
+#vkmusic
 vkwall
 vkvideo
 vkdocs
 help
 googleimg
-like
+global like
 pixelsort
 alarm
 unique censor
 unique hangman
 unique blackjack
 unique wiki
-global like
+unique captcha_balance
 global add_to_friends
-unique sea_battle

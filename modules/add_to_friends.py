@@ -1,6 +1,8 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
+from vk.exceptions import VkAPIError
 
+from threading import Timer
 import time
 import re
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -20,25 +22,53 @@ class Processor:
         self.user = user
         self.mc = 0
         self.uids = set()
+        self.blocked = False
 
     def process_message(self, message, chatid, userid):
         user_id = message["user_id"]
         self.uids.add(user_id)
         self.mc += 1
         print "--------- MC is ", self.mc
-        if self.mc < 20:
+        if self.mc < 25:
             return
+        self.mc = 0
+        uids = self.user.getRequests()
+        for uid in uids:
+            if self.user.friendAdd(uid):
+                print "Added to friends ", uid
+                log.info("Send a friend req for  id{}".format(uid))
+                self.pixelsort_and_post_on_wall(uid)
+
+        if self.blocked:
+            print "add to frinds is blocked"
+            return
+
         self.mc = 0
         fs = self.user.friendStatus(",".join([str(uid) for uid in self.uids]))
         for item in fs:
             print item
             if item["friend_status"] == 0:
-                if self.user.friendAdd(item["user_id"]):
-                    print "Added to friends ", item["user_id"]
-                    log.info("Send a friend req for  id{}".format(user_id))
-                    self.pixelsort_and_post_on_wall(item["user_id"])
-                else:
-                    log.error("Failed to send a friend req for  id{}".format(user_id))
+                try:
+                    if self.user.friendAdd(item["user_id"]):
+                        print "Added to friends ", item["user_id"]
+                        log.info("Send a friend req for  id{}".format(user_id))
+                        self.pixelsort_and_post_on_wall(item["user_id"])
+                    else:
+                        log.error("Failed to send a friend req for  id{}".format(user_id))
+                except VkAPIError as e:
+                    print "Can't add", item["user_id"], e.code
+                    if e.code != 175 and e.code != 176:
+                        print "---- Blocking add-to-frieneds to 12 hours"
+                        self.blocked = True
+                        t = Timer(60 * 60 * 2, self.unblock, [])
+                        t.start()
+                        raise
+
+    def unblock(self):
+        print "Unblocking add to frineds"
+        self.blocked = False;
+        self.uids = set()
+        self.mc = 0
 
     def pixelsort_and_post_on_wall(self, user_id):
         user = self.user.getUser(user_id, "photo_max_orig", name_case="Nom")
