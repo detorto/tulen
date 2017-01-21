@@ -105,18 +105,12 @@ class Processor:
         return dummy
 
     def process_message(self, message, chatid, userid):
-        msg = message["body"].lower()
+        with self.game_manager(message, userid, chatid):
+            msg = message["body"].lower()
 
-        user_id = userid
-        if not user_id:
-            user_id = message["user_id"]
-
-        # TODO: add game without questions, ability to play with seal
-
-        with self.game_manager(user_id, chatid):
             logger.info(msg)
             response_text = self.handler(msg)()
             if response_text:
                 self.user.send_message(text=response_text, userid=userid, chatid=chatid)
                 return True
-        return False
+            return False

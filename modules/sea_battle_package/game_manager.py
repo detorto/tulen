@@ -29,7 +29,10 @@ class GameManager:
 
         self.load()
 
-    def __call__(self, uid, chat_id):
+    def __call__(self, message, uid, chat_id):
+        if not uid:
+            uid = message["user_id"]
+
         self.uid = uid
         self.chat_id = chat_id
         self.load()
@@ -449,7 +452,7 @@ class GameManager:
                 data = yaml.load(stream)
                 self.teams = data["teams"]
                 self.games = data["games"]
-                self.check_games()
+                # self.check_games()
                 self.active_sessions = data["active_sessions"]
         except Exception as e:
             self.teams = {}
@@ -459,7 +462,7 @@ class GameManager:
 
     def save(self):
         with open(self.directory + "/seabattle_game.yaml", 'w') as outfile:
-            self.check_games()
+            # self.check_games()
             data = {"teams": self.teams, "games": self.games, "active_sessions": self.active_sessions}
             yaml.dump(data, outfile, default_flow_style=True)
 
