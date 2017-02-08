@@ -8,6 +8,7 @@ import sys, traceback
 from multiprocessing.pool import ThreadPool
 from datetime import date
 from datetime import datetime
+import threading
 
 from vk.exceptions import VkAPIError
 from twocaptchaapi import TwoCaptchaApi
@@ -99,7 +100,7 @@ def update_minfo(method, type, incr):
         open("./files/minfo.json","w").write(pretty_dump(json))
 
 def info_string(method, val ):
-    return  datetime.now().strftime('%H:%M:%S') + "\t" + method + "\t" + str(os.getpid()) +"\t" + val + "\t"+read_minfo(method) +"\n"
+    return  datetime.now().strftime('%H:%M:%S') + "\t" + method + "\t" + str(os.getpid()) +"\t" + val + "\t"+read_minfo(method) +"\t"+str(threading.active_count())+"\n"
 
 no_captcha = multiprocessing.Event()
 no_captcha.set()
@@ -118,7 +119,7 @@ def rated_operation(operation, args):
 
                process = psutil.Process(os.getpid())
        
-               print time.time(), operation._method_name, process.memory_info().rss, process.memory_info().rss/1024.0/1024.0, cerror
+               print time.time(), operation._method_name, process.memory_info().rss, process.memory_info().rss/1024.0/1024.0, cerror, threading.active_count()
                
 
                if not this_captcha and not no_captcha.is_set(): #captcha in progress, wait
@@ -148,7 +149,11 @@ def rated_operation(operation, args):
                     temp_name = next(tempfile._get_candidate_names())
                     temp_name = "./files/{}.jpg".format(temp_name)
                     urllib.urlretrieve (e.captcha_img, temp_name)
-                    res,current_captcha = solve_capthca(temp_name)
+                    try:
+                        res,current_captcha = solve_capthca(temp_name)
+                    except:
+                        print "Somthing bad in capthca solving"
+                        continue
                     print "Solved captcha: ",res
                     update_minfo(operation._method_name, "captcha", 1)     
                     args.update({"captcha_sid":e.captcha_sid,"captcha_key":res})   

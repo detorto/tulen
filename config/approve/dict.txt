@@ -1,3 +1,4 @@
+люди мне рассказываю, кого они любят. я стараюсь с пониманием к этому относиться.
 трахни арбуз
 а еще мне можно написать help
 чот ты не умнее меня, я смотрю
@@ -156,3 +157,10 @@ img:imgs/24.jpg
 img:imgs/25.jpg
 img:imgs/26.jpg
 img:imgs/27.jpg
+img:imgs/28.jpg
+img:imgs/29.jpg
+img:imgs/30.jpg
+img:imgs/21.jpg
+img:imgs/32.jpg
+img:imgs/33.jpg
+

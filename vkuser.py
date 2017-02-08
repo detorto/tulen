@@ -13,6 +13,7 @@ import multiprocessing
 import os
 import logging
 import random
+import threading
 
 logger = logging.getLogger('tulen')
 
@@ -331,14 +332,14 @@ return messages;"""
         return attachments
 
     def find_audio(self, req):
-        print "Audio", req
+#        print "Audio", req
         op = self.api.audio.search
         args = {"q":req, "auto_complete" : 1, "search_own" : 0, "count" : 1}
 
         resp = rated_operation(op, args)
     
         try:
-            print resp
+        #    print resp
             audio = resp["items"][0]
             self.update_stat("audio_found", 1)
 
@@ -351,7 +352,7 @@ return messages;"""
             return None
 
     def find_video(self, req):
-        print "Find video",req
+ #       print "Find video",req
         op = self.api.video.search
         args = {"q":req, "adult":0, "search_own":0, "count":1}
         resp = rated_operation(op,args)
@@ -366,7 +367,7 @@ return messages;"""
             return None
 
     def find_doc(self, req):
-            print "Find doc",req
+  #          print "Find doc",req
             op = self.api.docs.search
             args = {"q":req, "count":1}
             resp = rated_operation(op,args)
@@ -381,7 +382,7 @@ return messages;"""
                     return None
 
     def find_wall(self, req):
-            print "Find wall",req
+   #         print "Find wall",req
             op = self.api.newsfeed.search
             args = {"q":req, "count":1}
             resp = rated_operation(op,args)
