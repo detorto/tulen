@@ -1,0 +1,11 @@
+requests
+vk
+twocaptchaapi
+psutil
+pyyaml
+multiline-log-formatter
+pillow
+scipy
+numpy
+beautifulsoup4
+apscheduler
