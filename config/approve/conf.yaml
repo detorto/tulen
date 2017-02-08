@@ -42,3 +42,5 @@
 .*что.*делае.*:
     dict: doing.txt
     private_use: true
+.*почему.*:
+    dict: why.txt
