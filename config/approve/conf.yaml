@@ -1,5 +1,8 @@
+.*аниме.*:
+    dict: anime.txt
 .*тупой.*:
     dict: stupid.txt
+    private_use: true
 .*\Bда\Z:
     dict: yes.txt
 ^.*\Bнет:
@@ -39,3 +42,5 @@
 .*что.*делае.*:
     dict: doing.txt
     private_use: true
+.*почему.*:
+    dict: why.txt

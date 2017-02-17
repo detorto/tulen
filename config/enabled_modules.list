@@ -1,4 +1,3 @@
-unique sea_battle
 dump_photos
 unique blacklist
 ascii_img
@@ -19,3 +18,4 @@ unique blackjack
 unique wiki
 unique captcha_balance
 global add_to_friends
+unique who

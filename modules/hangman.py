@@ -120,8 +120,8 @@ class Processor:
             self.game_context = {"word":self.load_random_word(), "opened": [], "errors":[], "session_started":False }
 
     def generate_message(self):
-        print self.game_context
-        print self.game_context["word"]
+ #       print self.game_context
+#        print self.game_context["word"]
         imgp = len(self.game_context["errors"])
 
         if imgp >= len(images):
