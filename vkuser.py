@@ -1,11 +1,9 @@
-#coding: utf-8
+# coding: utf-8
+
 import vk
-import time
-import json
 import requests
 from utils import *
 import utils
-import io
 import sys
 import traceback
 from multiprocessing.pool import ThreadPool
@@ -13,14 +11,13 @@ import multiprocessing
 import os
 import logging
 import random
-import threading
 
 logger = logging.getLogger('tulen')
 
-class VkUser(object):
 
-    def __init__(self, config, update_stat, testmode = False):
-	random.seed(time.time())
+class VkUser(object):
+    def __init__(self, config, update_stat, testmode=False):
+        random.seed(time.time())
         self.config = config
 
         self.update_stat_ = update_stat
@@ -31,7 +28,7 @@ class VkUser(object):
             logger.info("Running in test mode")
         else:
             session = vk.Session(access_token=self.config["access_token"]["value"])
-            self.api = vk.API(session,  v='5.50', timeout = 10)
+            self.api = vk.API(session, v='5.50', timeout=10)
             logger.info("VK API created")
 
         capthca_api_key = self.config.get("twocaptcha_api_key", None)
@@ -41,7 +38,6 @@ class VkUser(object):
 
         run_ratelimit_dispatcher();
         logger.info("Rate-limit dispatcher started");
-        
 
         modules_list_file = self.config.get("enabled_modules_list", None)
 
@@ -54,18 +50,17 @@ class VkUser(object):
         if not mods:
             raise RuntimeError("Can't find any module to load!")
         logger.info("Enabled modules: [{}]".format(",".join(mods)))
-        
+
         self.load_modules(mods)
 
         self.thread_pool_modules = ThreadPool(int(config.get("mod_threads", 4)))
         self.thread_pool_msg = ThreadPool(int(config.get("msg_threads", 4)))
         self.mutex = multiprocessing.Lock()
-        logger.info("Multiprocessing intiated: "+str(self.thread_pool_modules) + " "+ str(self.thread_pool_modules))
+        logger.info("Multiprocessing intiated: " + str(self.thread_pool_modules) + " " + str(self.thread_pool_modules))
         self.testmode = testmode
 
-
     def load_modules(self, mod_list):
-        
+
         self.unique_modules = []
         self.global_modules = []
         self.parallel_modules = []
@@ -75,23 +70,23 @@ class VkUser(object):
             modif = "parallel"
             module = data[0]
             if len(data) > 1:
-                 modif = data[0]
-                 module = data[1]              
-              
-            package = __import__("modules"+"."+module)
+                modif = data[0]
+                module = data[1]
+
+            package = __import__("modules" + "." + module)
             processor = getattr(package, module)
             modprocessor = processor.Processor(self)
             if modif == "unique":
                 self.unique_modules.append(modprocessor)
-            elif  modif == "global":
+            elif modif == "global":
                 self.global_modules.append(modprocessor)
             else:
                 self.parallel_modules.append(modprocessor)
 
-            logger.info("Loaded module: [{}] as {}".format("modules"+"."+module, modif))
+            logger.info("Loaded module: [{}] as {}".format("modules" + "." + module, modif))
 
-    def module_file(self,  modname, filename):
-        return os.path.join(self.config.get("modules_config_dir", "config"),modname, filename)
+    def module_file(self, modname, filename):
+        return os.path.join(self.config.get("modules_config_dir", "config"), modname, filename)
 
     def update_stat(self, stat, value):
         logger.debug("Mutex acuire")
@@ -106,7 +101,7 @@ class VkUser(object):
         if self.testmode:
             msg = raw_input("msg>> ")
             msg = msg.decode('utf-8')
-            messages = [{"read_state":0, "id":"0","body":msg,"chat_id":2}]
+            messages = [{"read_state": 0, "id": "0", "body": msg, "chat_id": 2}]
         else:
             code = """var k = 200;
 var messages = API.messages.get({"count": k});
@@ -122,10 +117,10 @@ ids = ids.substr(0,ids.length-1);
 API.messages.markAsRead({"message_ids":ids});
 
 return messages;"""
-#            operation = self.api.messages.get
+            #            operation = self.api.messages.get
             operation = self.api.execute
-            args = {"code" : code}
-            ret = rated_operation( operation, args )
+            args = {"code": code}
+            ret = rated_operation(operation, args)
             messages = ret["items"]
 
         self.process_messages(messages)
@@ -138,22 +133,21 @@ return messages;"""
         return rated_operation(operation, args)
 
     def mark_messages(self, message_ids):
-#        logger.debug("Marking messages: {}".format(",".join([str(a) for a in message_ids])))
+        #        logger.debug("Marking messages: {}".format(",".join([str(a) for a in message_ids])))
         if self.testmode:
             return
 
         operation = self.api.messages.markAsRead
-        args = {"message_ids" : ",".join([str(x) for x in message_ids])}
-        rated_operation( operation, args )
+        args = {"message_ids": ",".join([str(x) for x in message_ids])}
+        rated_operation(operation, args)
 
-
-    def proc_msg_(self,message):
-        chatid = message.get("chat_id",None)
+    def proc_msg_(self, message):
+        chatid = message.get("chat_id", None)
         userid = None
 
         if not chatid:
             userid = message.get("user_id", None)
-        
+
         def thread_work(data):
             try:
                 return data[0].process_message(message=data[1], chatid=data[2], userid=data[3])
@@ -164,18 +158,19 @@ return messages;"""
                 self.update_stat("errors", 1)
 
         logger.debug("Mapping message between modules")
-        logger.debug("Unique modules:" + str(len(self.unique_modules)))       
+        logger.debug("Unique modules:" + str(len(self.unique_modules)))
         for m in self.unique_modules:
             if thread_work((m, message, chatid, userid)) == True:
-                logger.info("Unique module {} worked".format( m.__class__))
+                logger.info("Unique module {} worked".format(m.__class__))
                 print "some is good"
-                return 
- 	logger.info("Mapping message to parallel modules")
-        self.thread_pool_modules.map_async(thread_work, [(module, message, chatid, userid) for module in self.parallel_modules])
+                return
+        logger.info("Mapping message to parallel modules")
+        self.thread_pool_modules.map_async(thread_work,
+                                           [(module, message, chatid, userid) for module in self.parallel_modules])
 
     def process_messages(self, messages):
 
-        unread_messages = [ msg for msg in messages if msg["read_state"] == 0]
+        unread_messages = [msg for msg in messages if msg["read_state"] == 0]
         if len(unread_messages) > 0:
             logger.info("Unread messages: {}".format("\n".join([m["body"].encode("utf8") for m in unread_messages])))
 
@@ -185,51 +180,50 @@ return messages;"""
             for m in unread_messages:
                 print "Processing message in global mods: ", len(self.global_modules)
                 for mod in self.global_modules:
-                     chatid = m.get("chat_id",None)
-                     userid = None
+                    chatid = m.get("chat_id", None)
+                    userid = None
 
-                     if not chatid:
+                    if not chatid:
                         userid = m.get("user_id", None)
 
-                     mod.process_message(m, chatid, userid)
+                    mod.process_message(m, chatid, userid)
 
             logger.debug("Mapping messages between msg processors [{}]".format(len(unread_messages)))
             self.thread_pool_msg.map_async(self.proc_msg_, unread_messages)
-            self.update_stat("processes",len(unread_messages))
+            self.update_stat("processes", len(unread_messages))
 
     def send_message(self, text="", chatid=None, userid=None, attachments=None):
-        try:       
+        try:
             logger.info("Sending msg [{}] to c[{}]:u[{}] with attachment [{}]".format(text,
-                                                                                    chatid,
-                                                                                    userid,
-                                                                                    repr(attachments)))
+                                                                                      chatid,
+                                                                                      userid,
+                                                                                      repr(attachments)))
         except:
-            logger.info("Sending some unformated !!!!! msg to {}:{}".format(chatid,userid))
+            logger.info("Sending some unformated !!!!! msg to {}:{}".format(chatid, userid))
         if self.testmode:
-            print "----",text, attachments
-            return 
+            print "----", text, attachments
+            return
 
         if not attachments:
             attachments = {}
-            
+
         op = self.api.messages.send
         try:
             text = text.decode("utf-8")
         except:
             pass
-        text = text.replace(u"а",u"a")
-        text = text.replace(u"е",u"e")
-        text = text.replace(u"о",u"o")
-        text = text.replace(u"с",u"c")
-
+        text = text.replace(u"а", u"a")
+        text = text.replace(u"е", u"e")
+        text = text.replace(u"о", u"o")
+        text = text.replace(u"с", u"c")
 
         if isinstance(userid, (int, long)):
-            args = {"chat_id" :chatid, "user_id" : userid, "message" : text, "attachment" : attachments}
+            args = {"chat_id": chatid, "user_id": userid, "message": text, "attachment": attachments}
         else:
             args = {"chat_id": chatid, "domain": userid, "message": text, "attachment": attachments}
         args.update({"random_id": random.randint(0xfff, 0xffffff)})
         ret = rated_operation(op, args)
-        
+
         if not ret:
             logger.warning("No answer for operation")
 
@@ -253,15 +247,16 @@ return messages;"""
         return ret
 
     def post(self, text, chatid, userid, attachments):
-	#return None
+        # return None
         oppost = self.api.wall.post
-        args = {"owner_id" :int(self.config["access_token"]["user_id"]), "message" : text, "attachments" : ",".join(attachments)}
-            
+        args = {"owner_id": int(self.config["access_token"]["user_id"]), "message": text,
+                "attachments": ",".join(attachments)}
+
         print "Posting on wall"
         print pretty_dump(args)
 
         ret = rated_operation(oppost, args)
-        
+
         self.update_stat("attachments", len(attachments))
         self.update_stat("post", 1)
         return ret
@@ -270,11 +265,11 @@ return messages;"""
         photos = []
         for f in files:
             op = requests.post
-            args = {"url" : upserver["upload_url"], "files" : {'photo': (f.split("/")[-1], open(f, 'rb'))}}
+            args = {"url": upserver["upload_url"], "files": {'photo': (f.split("/")[-1], open(f, 'rb'))}}
             try:
                 response = op(**args)
-                pj =  response.json()
-                ph = {"photo":pj["photo"], "server":pj["server"],"hash":pj["hash"]}
+                pj = response.json()
+                ph = {"photo": pj["photo"], "server": pj["server"], "hash": pj["hash"]}
                 photos.append(ph)
             except:
                 print "Error in photo uploading"
@@ -284,46 +279,48 @@ return messages;"""
         op = self.api.photos.getMessagesUploadServer
         args = {}
         upserver = rated_operation(op, args)
-        print "Got upserver"        
+        print "Got upserver"
         ids = self.__upload_images(upserver, files)
         print "Uploaded images"
         attachments = []
         for i in ids:
             try:
                 op = self.api.photos.saveMessagesPhoto
-                args = {"photo":i["photo"], "server":i["server"], "hash":i["hash"]}
+                args = {"photo": i["photo"], "server": i["server"], "hash": i["hash"]}
 
                 resp = rated_operation(op, args)
                 print "Saved photos"
-                print "Uload resp:",resp
-                attachments.append("photo"+str(resp[0]["owner_id"])+"_"+str(resp[0]["id"]))
+                print "Uload resp:", resp
+                attachments.append("photo" + str(resp[0]["owner_id"]) + "_" + str(resp[0]["id"]))
             except:
 
                 print "Error in photo saving:"
                 return None
 
         self.update_stat("images_uploaded", len(attachments))
-    
+
         return attachments
 
     def upload_images_files_wall(self, files):
-        #return [] 
+        # return []
         op = self.api.photos.getWallUploadServer
-        args = {"group_id":int(self.config["access_token"]["user_id"])}
+        args = {"group_id": int(self.config["access_token"]["user_id"])}
         upserver = rated_operation(op, args)
 
-        photos = self.__upload_images(upserver,files)
-        
+        photos = self.__upload_images(upserver, files)
+
         ids = photos
         attachments = []
         for i in ids:
             try:
                 op = self.api.photos.saveWallPhoto
-                args = {"user_id":int(self.config["access_token"]["user_id"]),"group_id":int(self.config["access_token"]["user_id"]), "photo":i["photo"], "server":i["server"], "hash":i["hash"]}
+                args = {"user_id": int(self.config["access_token"]["user_id"]),
+                        "group_id": int(self.config["access_token"]["user_id"]), "photo": i["photo"],
+                        "server": i["server"], "hash": i["hash"]}
 
                 resp = rated_operation(op, args)
-        
-                attachments.append("photo"+str(resp[0]["owner_id"])+"_"+str(resp[0]["id"]))
+
+                attachments.append("photo" + str(resp[0]["owner_id"]) + "_" + str(resp[0]["id"]))
             except:
                 raise
                 print "Error in photo saving:"
@@ -332,105 +329,102 @@ return messages;"""
         return attachments
 
     def find_audio(self, req):
-#        print "Audio", req
+        #        print "Audio", req
         op = self.api.audio.search
-        args = {"q":req, "auto_complete" : 1, "search_own" : 0, "count" : 1}
+        args = {"q": req, "auto_complete": 1, "search_own": 0, "count": 1}
 
         resp = rated_operation(op, args)
-    
+
         try:
-        #    print resp
+            #    print resp
             audio = resp["items"][0]
             self.update_stat("audio_found", 1)
 
-            r = "audio"+str(audio["owner_id"])+"_"+str(audio["id"])
+            r = "audio" + str(audio["owner_id"]) + "_" + str(audio["id"])
             print r
-            return [r,]
+            return [r, ]
         except:
             print "Error in audio find:"
             print pretty_dump(resp)
             return None
 
     def find_video(self, req):
- #       print "Find video",req
+        #       print "Find video",req
         op = self.api.video.search
-        args = {"q":req, "adult":0, "search_own":0, "count":1}
-        resp = rated_operation(op,args)
+        args = {"q": req, "adult": 0, "search_own": 0, "count": 1}
+        resp = rated_operation(op, args)
         try:
             video = resp["items"][0]
             self.update_stat("video_found", 1)
-            r =  "video"+str(video["owner_id"])+"_"+str(video["id"])
-            return [r,]
+            r = "video" + str(video["owner_id"]) + "_" + str(video["id"])
+            return [r, ]
         except:
             print "Error in video find:"
             print pretty_dump(resp)
             return None
 
     def find_doc(self, req):
-  #          print "Find doc",req
-            op = self.api.docs.search
-            args = {"q":req, "count":1}
-            resp = rated_operation(op,args)
-            try:   
-                    doc = resp["items"][0]
-                    self.update_stat("docs_found", 1)
-                    r =  "doc"+str(doc["owner_id"])+"_"+str(doc["id"])
-                    return [r,]
-            except:
-                    print "Error in video find:"
-                    print pretty_dump(resp)
-                    return None
+        #          print "Find doc",req
+        op = self.api.docs.search
+        args = {"q": req, "count": 1}
+        resp = rated_operation(op, args)
+        try:
+            doc = resp["items"][0]
+            self.update_stat("docs_found", 1)
+            r = "doc" + str(doc["owner_id"]) + "_" + str(doc["id"])
+            return [r, ]
+        except:
+            print "Error in video find:"
+            print pretty_dump(resp)
+            return None
 
     def find_wall(self, req):
-   #         print "Find wall",req
-            op = self.api.newsfeed.search
-            args = {"q":req, "count":1}
-            resp = rated_operation(op,args)
-            try:
-                    wall = resp["items"][0]
-                    self.update_stat("walls_found", 1)
-                    r =  "wall"+str(wall["owner_id"])+"_"+str(wall["id"])
-                    return [r,]
-            except:
-                    print "Error in video find:"
-                    print pretty_dump(resp)
-                    return None
+        #         print "Find wall",req
+        op = self.api.newsfeed.search
+        args = {"q": req, "count": 1}
+        resp = rated_operation(op, args)
+        try:
+            wall = resp["items"][0]
+            self.update_stat("walls_found", 1)
+            r = "wall" + str(wall["owner_id"]) + "_" + str(wall["id"])
+            return [r, ]
+        except:
+            print "Error in video find:"
+            print pretty_dump(resp)
+            return None
 
     def get_news(self, count=10):
-            op = self.api.newsfeed.get
-            args = {"filters":"post", "count":count}
-            resp = rated_operation(op,args)
-            return resp["items"]
-    
-    def like_post(self, post_id, owner_id):
-            op = self.api.likes.add
-            args = {"type":"post", "item_id":post_id, "owner_id":owner_id}
-            resp = rated_operation(op,args)
+        op = self.api.newsfeed.get
+        args = {"filters": "post", "count": count}
+        resp = rated_operation(op, args)
+        return resp["items"]
 
+    def like_post(self, post_id, owner_id):
+        op = self.api.likes.add
+        args = {"type": "post", "item_id": post_id, "owner_id": owner_id}
+        resp = rated_operation(op, args)
 
     def friendStatus(self, user_ids):
         op = self.api.friends.areFriends
-        args = {"user_ids":user_ids}
-        resp = rated_operation(op,args)
+        args = {"user_ids": user_ids}
+        resp = rated_operation(op, args)
         return resp
 
-    def getUser(self,userid,fields,name_case):
+    def getUser(self, userid, fields, name_case):
         op = self.api.users.get
-        args = {"user_ids":userid,"fields":fields,"name_case":name_case}
-        resp = rated_operation(op,args)
+        args = {"user_ids": userid, "fields": fields, "name_case": name_case}
+        resp = rated_operation(op, args)
         return resp[0]
 
-
-    def friendAdd(self, user_id ):
+    def friendAdd(self, user_id):
         op = self.api.friends.add
-        args = {"user_id":user_id}
-        resp = rated_operation(op,args)
+        args = {"user_id": user_id}
+        resp = rated_operation(op, args)
         return True
 
     def getRequests(self):
         op = self.api.friends.getRequests
         args = {}
-        resp = rated_operation(op,args)
+        resp = rated_operation(op, args)
         print resp
         return resp["items"]
-

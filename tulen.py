@@ -2,17 +2,12 @@
 # -*- coding: utf-8 -*-
 
 from vkuser import VkUser
+import sys
+import traceback
+import io
 from optparse import OptionParser
 import yaml
 import logging
-import traceback
-import io
-import sys
-
-from multiprocessing import Process, freeze_support
-
-# from utils import *
-# from vkuser import *
 
 LOG_SETTINGS = {
     'version': 1,
@@ -69,7 +64,7 @@ def process(config, testmode):
         try:
             vkuser.process_all_messages()
         except:
-            logger.error("Something wrong while processin dialogs")
+            logger.error("Something wrong while processing dialogs")
             exc_type, exc_value, exc_traceback = sys.exc_info()
             logger.error("\n".join(traceback.format_exception(exc_type, exc_value, exc_traceback)))
             if testmode:
@@ -96,8 +91,4 @@ def main():
 
 
 if __name__ == '__main__':
-    # multiprocessing.freeze_support()
-    freeze_support()
     main()
-    # p = Process(target=main)
-    # p.start()
