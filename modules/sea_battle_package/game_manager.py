@@ -213,12 +213,24 @@ class GameManager:
     @need_valid_map
     def show_maps(self, message):
         gc = self.game_context
-        field = u"поле команды {} (ваше):\n".format(gc.this_team_name)
-        field += gc.this_team.print_fields(False)
+        ans = u"Ваше поле:\n"
+        # ans += gc.this_team.print_fields_pic(False)
+        img_filename = gc.this_team.print_fields_pic(False)
+
+        print "Uploading sea_battle team {} map", gc.this_team_name
+        msg_attachments = self.vk_user.upload_images_files([img_filename])
+        self.vk_user.send_message(text=ans, attachments = msg_attachments, chatid = self.chat_id, userid=self.uid)
+
         if gc.opponent:
-            field += u"поле выстрелов по оппоненту {}:\n".format(gc.op_team_name)
-            field += gc.opponent.print_fields(True)
-        return field
+            ans += u"Поле выстрелов по оппоненту:\n"
+            # ans += gc.opponent.print_fields_pic(True)
+            img_filename = gc.opponent.print_fields_pic(True)
+
+            print "Uploading sea_battle opponent team {} map", gc.op_team_name
+            msg_attachments = self.vk_user.upload_images_files([img_filename])
+            self.vk_user.send_message(text=ans, attachments=msg_attachments, chatid=self.chat_id, userid=self.uid)
+
+        return u"Ходите"
 
     @need_questioned_game_session
     @need_game_context

@@ -4,6 +4,14 @@
 import ship_processing as sp
 from utils import *
 import random
+from PIL import Image
+
+CEIL = (67, 64)
+FIELD_START = (72, 63)
+SHIP_PATH = './modules/sea_battle_package/images/ship_{}d_{}.png'
+EXPLOSION_PATH = './modules/sea_battle_package/images/explosion.png'
+WATER_PATH = './modules/sea_battle_package/images/water.png'
+FIELD_PATH = './modules/sea_battle_package/images/field{}.png'
 
 
 def generate_field_of_shots():
@@ -64,6 +72,47 @@ class Team:
     # or only field of shots
     def print_fields(self, only_shots):
         return Team.print_fields_s(self.field, self.field_of_shots, only_shots)
+
+    # prints either self field merged with shots made at this field
+    # or only field of shots
+    def print_fields_pic(self, only_shots):
+        field_pic = Image.open(FIELD_PATH, 'r')
+
+        for ship in self.ships:
+            if not only_shots or (only_shots and ship.check_dead()):
+                Team.place_ship(field_pic,
+                                ship.rank,
+                                'h' if ship.orientation == Orientation.NONE or ship.orientation == Orientation.HORIZONTAL
+                                else 'v',
+                                ship.get_head_point())
+            for p in ship.points:
+                if p.was_hit:
+                    Team.place_explosion(field_pic, (p.x, p.y))
+        for i in range(MAP_SIZE):
+            for j in range(MAP_SIZE):
+                if self.field_of_shots[j + i * MAP_SIZE] == '.':
+                    Team.place_water(field_pic, (j, i))
+        name = FIELD_PATH.format('_out')
+        field_pic.save(name)
+        return name
+
+    @staticmethod
+    def place_ship(field, size, orientation, point):
+        Team.place_picture(field, SHIP_PATH.format(size, orientation), point)
+
+    @staticmethod
+    def place_explosion(field, point):
+        Team.place_picture(field, EXPLOSION_PATH, point)
+
+    @staticmethod
+    def place_water(field, point):
+        Team.place_picture(field, WATER_PATH, point)
+
+    @staticmethod
+    def place_picture(field, pic_name, point):
+        pic = Image.open(pic_name, 'r')
+        offset = (FIELD_START[0] + CEIL[0] * point[0], FIELD_START[1] + CEIL[1] * point[1])
+        field.paste(pic, offset, pic)
 
     @staticmethod
     def print_fields_s(field, of_shots, only_shots):

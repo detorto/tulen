@@ -77,6 +77,18 @@ class Point:
     def __ne__(self, other):
         return not self.__eq__(other)
 
+    def __lt__(self, other):
+        return self.x < other.x or self.y < other.y
+
+    def __le__(self, other):
+        return self.x <= other.x or self.y <= other.y
+
+    def __gt__(self, other):
+        return self.x > other.x or self.y > other.y
+
+    def __ge__(self, other):
+        return self.x >= other.x or self.y >= other.y
+
 
 class MapParseException(Exception):
     def __init__(self, value):
@@ -107,6 +119,9 @@ class Ship:
             if not p.was_hit:
                 return False
         return True
+
+    def get_head_point(self):
+        return min(self.points)
 
     def try_attack(self, hit_point):
         for i, p in enumerate(self.points):
