@@ -178,9 +178,18 @@ class GameManager:
             return field
         resp = self.game_context.this_team.parse_fields(field)
         if resp == GOOD_MAP_MSG:
-            return u"Загрузил карту:\n" + Team.print_fields_s(field, generate_field_of_shots(), False)
+            ans = u"Загрузил карту:\n"
+            img_filename = self.game_context.this_team.print_fields_pic(False)
+
+            print "Uploading sea_battle team {} map", self.game_context.this_team_name
+            msg_attachments = self.vk_user.upload_images_files([img_filename])
+            print 'self.chat_id - ', self.chat_id
+            print 'self.uid - ', self.uid
+            self.send_message(message=ans, attachments=msg_attachments, chat_id=self.chat_id, uid=self.uid)
+            return u"Выбирайте соперника".format(self.chat_id, self.uid)
+            # return u"Загрузил карту:\n" + Team.print_fields_s(field, generate_field_of_shots(), False)
         else:
-            return resp + u"\n" + Team.print_fields_s(field, generate_field_of_shots(), False)
+            return resp
 
     @need_game_session
     @need_game_context
@@ -219,16 +228,16 @@ class GameManager:
 
         print "Uploading sea_battle team {} map", gc.this_team_name
         msg_attachments = self.vk_user.upload_images_files([img_filename])
-        self.vk_user.send_message(text=ans, attachments = msg_attachments, chatid = self.chat_id, userid=self.uid)
+        self.send_message(message=ans, attachments=msg_attachments, chat_id=self.chat_id, uid=self.uid)
 
         if gc.opponent:
-            ans += u"Поле выстрелов по оппоненту:\n"
+            ans = u"Поле выстрелов по оппоненту:\n"
             # ans += gc.opponent.print_fields_pic(True)
             img_filename = gc.opponent.print_fields_pic(True)
 
             print "Uploading sea_battle opponent team {} map", gc.op_team_name
             msg_attachments = self.vk_user.upload_images_files([img_filename])
-            self.vk_user.send_message(text=ans, attachments=msg_attachments, chatid=self.chat_id, userid=self.uid)
+            self.send_message(message=ans, attachments=msg_attachments, chat_id=self.chat_id, uid=self.uid)
 
         return u"Ходите"
 
@@ -489,11 +498,11 @@ class GameManager:
             print "Exception occurred while checking session - {}".format(e.message)
         return False, False
 
-    def send_message(self, uid, chat_id, message):
+    def send_message(self, uid, chat_id, message, attachments=None):
         if chat_id:
-            self.vk_user.send_message(text=message, userid=None, chatid=chat_id)
+            self.vk_user.send_message(text=message, userid=None, chatid=chat_id, attachments=attachments)
         else:
-            self.vk_user.send_message(text=message, userid=uid, chatid=None)
+            self.vk_user.send_message(text=message, userid=uid, chatid=None, attachments=attachments)
 
     def generate_bot_field(self):
         while True:

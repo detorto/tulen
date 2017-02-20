@@ -76,18 +76,19 @@ class Team:
     # prints either self field merged with shots made at this field
     # or only field of shots
     def print_fields_pic(self, only_shots):
-        field_pic = Image.open(FIELD_PATH, 'r')
+        field_pic = Image.open(FIELD_PATH.format(''), 'r')
 
-        for ship in self.ships:
-            if not only_shots or (only_shots and ship.check_dead()):
-                Team.place_ship(field_pic,
-                                ship.rank,
-                                'h' if ship.orientation == Orientation.NONE or ship.orientation == Orientation.HORIZONTAL
-                                else 'v',
-                                ship.get_head_point())
-            for p in ship.points:
-                if p.was_hit:
-                    Team.place_explosion(field_pic, (p.x, p.y))
+        for rank in sp.SHIP_RANKS_DICT:
+            for ship in self.ships[rank]:
+                if not only_shots or (only_shots and ship.check_dead()):
+                    Team.place_ship(field_pic,
+                                    ship.rank,
+                                    'h' if ship.orientation == Orientation.NONE or ship.orientation == Orientation.HORIZONTAL
+                                    else 'v',
+                                    (ship.get_head_point().x, ship.get_head_point().y))
+                for p in ship.points:
+                    if p.was_hit:
+                        Team.place_explosion(field_pic, (p.x, p.y))
         for i in range(MAP_SIZE):
             for j in range(MAP_SIZE):
                 if self.field_of_shots[j + i * MAP_SIZE] == '.':

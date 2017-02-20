@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-from utils import Orientation
+from utils import Orientation, try_get_number
 from ast import literal_eval as make_tuple
 from game_constants import *
 
@@ -19,20 +19,34 @@ class Point:
     def fits_field(point):
         return 0 <= point.x < MAP_SIZE and 0 <= point.y < MAP_SIZE
 
+    @staticmethod
+    def check_coord(coord):
+        try:
+            if isinstance(coord, (int, long)):
+                return coord
+            return u"abcdefghij".find(coord) + 1
+        except Exception as e:
+            print e.message
+            return 0
+
     @classmethod
     def try_parse(cls, coords_str):
         try:
-            coords_str = "(" + coords_str + ")"
-            point_t = make_tuple(coords_str)
-            if not point_t[0] in range(1, MAP_SIZE+1):
+            print "trying to parse coords string - {}".format(coords_str)
+            coords_arr = coords_str.split(',')
+            if len(coords_arr) != 2:
+                return u"Неверный формат координат, это двумерная игра, дурни"
+
+            coord_x, coord_y = Point.check_coord(try_get_number(coords_arr[0])), Point.check_coord(try_get_number(coords_arr[1]))
+            if coord_x <= 0 or coord_y <= 0:
+                return u"Моя нэ понимат такие координаты, читайте мануал"
+            if not coord_x in range(1, MAP_SIZE+1):
                 return u"Первая координата точки {} не верна! Координаты должны быть от 1 до {} включительно"\
                     .format(coords_str, MAP_SIZE)
-            if not point_t[1] in range(1, MAP_SIZE+1):
+            if not coord_y in range(1, MAP_SIZE+1):
                 return u"Вторая координата точки {} не верна! Координаты должны быть от 1 до {} включительно"\
                     .format(coords_str, MAP_SIZE)
-            if len(point_t) != 2:
-                return u"Неверный формат координат, это двумерная игра, дурни"
-            return cls(point_t[0]-1, point_t[1]-1, -1, -1)
+            return cls(coord_x-1, coord_y-1, -1, -1)
         except Exception as e:
             print "Error!! Couldn't parse a point from coordinates! - {}".format(e.message)
             return None

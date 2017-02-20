@@ -28,6 +28,12 @@ class Direction:
     UP = 3
     DOWN = 4
 
+def try_get_number(str):
+    try:
+        return int(str)
+    except:
+        return str
+
 def try_get_data(data, key):
     try:
         return data[key]
