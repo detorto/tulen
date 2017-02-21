@@ -9,10 +9,11 @@ vkvideo
 vkdocs
 help
 googleimg
-global like
+#global like
 pixelsort
 alarm
 unique censor
+unique sea_battle
 unique hangman
 unique blackjack
 unique wiki
