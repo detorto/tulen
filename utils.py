@@ -150,7 +150,9 @@ def rated_operation(operation, args):
                     temp_name = "./files/{}.jpg".format(temp_name)
                     urllib.urlretrieve (e.captcha_img, temp_name)
                     try:
+                        print "solving captcha ...",
                         res,current_captcha = solve_capthca(temp_name)
+                        print "ok"
                     except:
                         print "Somthing bad in capthca solving"
                         continue

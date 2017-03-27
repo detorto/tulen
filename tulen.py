@@ -81,7 +81,8 @@ def process(config, testmode):
     logger.info("Starting processing... ")
     while True:
         try:
-            vkuser.process_all_messages()
+            msg = vkuser.get_all_messages()
+            vkuser.process_messages(msg)
         except:
             logger.error("Something wrong while processin dialogs")
             exc_type, exc_value, exc_traceback = sys.exc_info()

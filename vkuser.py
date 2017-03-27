@@ -16,6 +16,7 @@ import random
 import threading
 
 logger = logging.getLogger('tulen')
+logger.setLevel(logging.DEBUG)
 
 class VkUser(object):
 
@@ -58,10 +59,23 @@ class VkUser(object):
         self.load_modules(mods)
 
         self.thread_pool_modules = ThreadPool(int(config.get("mod_threads", 4)))
-        self.thread_pool_msg = ThreadPool(int(config.get("msg_threads", 4)))
+        
+        self.message_queue_general = multiprocessing.Queue()
+        self.message_queue_parallel = multiprocessing.Queue()
+
+        
         self.mutex = multiprocessing.Lock()
-        logger.info("Multiprocessing intiated: "+str(self.thread_pool_modules) + " "+ str(self.thread_pool_modules))
+        
         self.testmode = testmode
+        self.message_processors_general = [ threading.Thread(target=self.process_message_general) for x in xrange(int(config.get("msg_threads", 4)))]
+        self.message_processors_parallel = [ threading.Thread(target=self.process_message_parallel) for x in xrange(int(config.get("mod_threads", 4)))]
+        for t in self.message_processors_general:
+            t.start()
+        for t in self.message_processors_parallel:
+            t.start()
+        
+        logger.info("Multiprocessing intiated: "+str(self.thread_pool_modules) + " "+ str(self.thread_pool_modules))
+        
 
 
     def load_modules(self, mod_list):
@@ -101,7 +115,7 @@ class VkUser(object):
         self.mutex.release()
         logger.debug("Mutex released")
 
-    def process_all_messages(self):
+    def get_all_messages(self):
         logger.debug("Retrieving messages")
         if self.testmode:
             msg = raw_input("msg>> ")
@@ -128,7 +142,8 @@ return messages;"""
             ret = rated_operation( operation, args )
             messages = ret["items"]
 
-        self.process_messages(messages)
+        return messages
+        #self.process_messages(messages)
 
     def get_all_friends(self, fields):
         logger.debug("Retrieving messages")
@@ -136,42 +151,56 @@ return messages;"""
         operation = self.api.friends.get
         args = {"fields": fields}
         return rated_operation(operation, args)
-
-    def mark_messages(self, message_ids):
-#        logger.debug("Marking messages: {}".format(",".join([str(a) for a in message_ids])))
-        if self.testmode:
-            return
-
-        operation = self.api.messages.markAsRead
-        args = {"message_ids" : ",".join([str(x) for x in message_ids])}
-        rated_operation( operation, args )
-
-
-    def proc_msg_(self,message):
+   
+    def process_message_in_module(self, module, message):
         chatid = message.get("chat_id",None)
         userid = None
 
         if not chatid:
             userid = message.get("user_id", None)
-        
-        def thread_work(data):
-            try:
-                return data[0].process_message(message=data[1], chatid=data[2], userid=data[3])
-            except:
-                logger.error("Something wrong while processin {}".format(str(data)))
-                exc_type, exc_value, exc_traceback = sys.exc_info()
-                logger.error("\n".join(traceback.format_exception(exc_type, exc_value, exc_traceback)))
-                self.update_stat("errors", 1)
 
-        logger.debug("Mapping message between modules")
-        logger.debug("Unique modules:" + str(len(self.unique_modules)))       
-        for m in self.unique_modules:
-            if thread_work((m, message, chatid, userid)) == True:
-                logger.info("Unique module {} worked".format( m.__class__))
-                print "some is good"
-                return 
- 	logger.info("Mapping message to parallel modules")
-        self.thread_pool_modules.map_async(thread_work, [(module, message, chatid, userid) for module in self.parallel_modules])
+        return module.process_message(message, chatid, userid)
+
+    def log_exception(self,data):
+        logger.error("Something wrong while processin {}".format(str(data)))
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+        logger.error("\n".join(traceback.format_exception(exc_type, exc_value, exc_traceback)))
+        self.update_stat("errors", 1)
+
+
+    def process_message_general(self):
+        while True:
+            try:
+                message = self.message_queue_general.get()
+                logger.debug("General message processing")
+                logger.debug("Unique modules:" + str(len(self.unique_modules)))       
+
+                shold_break = False;
+                for m in self.unique_modules:
+                    if self.process_message_in_module(m, message) == True:
+                        logger.info("Unique module {} worked".format( m.__class__))
+                        shold_break = True
+                        break
+
+                if shold_break:
+                    continue
+
+                logger.info("Sending message to parallel modules")
+                for i,_ in enumerate(self.parallel_modules):
+                    self.message_queue_parallel.put( (message,i) )
+            except:
+                self.log_exception("general message")
+
+
+    def process_message_parallel(self):
+        while True:
+            try:
+                message, module_index = self.message_queue_parallel.get()
+                logger.debug("Parallel message processing")
+                self.process_message_in_module(self.parallel_modules[module_index],message)
+            except:
+                self.log_exception("parallel processing")            
+
 
     def process_messages(self, messages):
 
@@ -185,16 +214,13 @@ return messages;"""
             for m in unread_messages:
                 print "Processing message in global mods: ", len(self.global_modules)
                 for mod in self.global_modules:
-                     chatid = m.get("chat_id",None)
-                     userid = None
+                    self.process_message_in_module(mod, m)
+            
+            logger.debug("Sending messages to queue [{}]".format(len(unread_messages)))
+            
+            for message in unread_messages:
+                self.message_queue_general.put(message)
 
-                     if not chatid:
-                        userid = m.get("user_id", None)
-
-                     mod.process_message(m, chatid, userid)
-
-            logger.debug("Mapping messages between msg processors [{}]".format(len(unread_messages)))
-            self.thread_pool_msg.map_async(self.proc_msg_, unread_messages)
             self.update_stat("processes",len(unread_messages))
 
     def send_message(self, text="", chatid=None, userid=None, attachments=None):
