@@ -18,12 +18,13 @@ def glitch_an_image(local_image):
           'columns': 'on',
           'treshold':random.randint(30,100) }
 
-  r = requests.post("https://glitch-pixelsort.gomix.me/", files=files,data=data)
+  r = requests.post("https://pixelsort.glitch.me/", files=files,data=data)
   
   if r.status_code == 200:
     with open(local_image, 'wb') as f:
       for chunk in r:
             f.write(chunk)  
+  print "Gliched"
 
 class Processor:
 
