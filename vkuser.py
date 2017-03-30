@@ -172,7 +172,6 @@ return messages;"""
         while True:
             try:
                 message = self.message_queue_general.get()
-                print "===got message from qg"
                 logger.debug("General message processing")
                 logger.debug("Unique modules:" + str(len(self.unique_modules)))       
 
@@ -190,10 +189,7 @@ return messages;"""
                 for i,_ in enumerate(self.parallel_modules):
                     self.message_queue_parallel.put( (message,i) )
             except:
-                try:
-                     self.log_exception("general message")
-                except:
-                     logger.error("Somthing happened on stacktrace print")
+                self.log_exception("general message")
 
 
     def process_message_parallel(self):
@@ -203,34 +199,28 @@ return messages;"""
                 logger.debug("Parallel message processing")
                 self.process_message_in_module(self.parallel_modules[module_index],message)
             except:
-                try:
-                    self.log_exception("parallel processing")            
-                except:
-                    print "somthing on stacktrace"
+                self.log_exception("parallel processing")            
+
 
     def process_messages(self, messages):
 
         unread_messages = [ msg for msg in messages if msg["read_state"] == 0]
         if len(unread_messages) > 0:
             logger.info("Unread messages: {}".format("\n".join([m["body"].encode("utf8") for m in unread_messages])))
-       
-        print "===msg count prew =  ", len(unread_messages)
 
         if len(unread_messages) > 0:
             logger.debug("Processing global-modules messages events")
-       
+
             for m in unread_messages:
                 print "Processing message in global mods: ", len(self.global_modules)
                 for mod in self.global_modules:
                     self.process_message_in_module(mod, m)
-            print "Processed in global modes, sending to q ", len(unread_messages) 
+            
             logger.debug("Sending messages to queue [{}]".format(len(unread_messages)))
             
-            print "===msg count post=  ", len(unread_messages)
-
             for message in unread_messages:
                 self.message_queue_general.put(message)
-            	print "---- put message in q"
+
             self.update_stat("processes",len(unread_messages))
 
     def send_message(self, text="", chatid=None, userid=None, attachments=None):

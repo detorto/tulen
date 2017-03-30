@@ -1,0 +1,140 @@
+Алгоритм морского боя:
+
+У каждого юзера, играющего в морской бой, есть свой контекст
+Юзеры могут играть с тюленем и с другими юзерами как юзеры или команды
+Если тюленю пишет юзер с пустым chat_id - команду регать не нужно, она регается автоматически
+
+Тюлень обрабатывает только сообщения юзера, который зарегался на игру как капитан команды
+
+Каждый юзер может быть кэпом одной команды в одном чате, а также кэпом своей команды в чате с тюленем
+В одном чате (с одним chat_id) в игру может играть (одновременно) только 1 капитан 1 команды (с тюленем или с другой командой)
+
+
+команды:
+
+тюлень, хотим в морской бой
+я капитан команды
+загрузи карту
+играю с командой
+вопросы
+ответ
+атакую: 0,0
+покажи карты
+покажи участников
+покажи игровые команды
+мы закончили морской бой
+
+
+
+Сценарии:
+тюлень, хотим в морской бой - до этой команды ввод юзера не обрабатывается модулем
+	if session:
+		return SESSION_ALREADY_ACTIVE
+	else:
+		msg += SESSION_STARTED
+		msg += NOT_REGISTERED_YET_MSG
+
+я капитан команды Петухи
+	если такой команды нет, и нет команды, где этот uid капитан - регается команда
+
+вопросы		-- выводит список вопросов (нужна сессия и регистрация команды (вопросы могут быть для каждой команды свои))
+
+загрузи карту 0 0 0 1 0 0 3 0 0 1
+            2 2 0 0 0 0 3 0 0 0
+            0 0 0 0 0 0 3 0 0 2
+            0 0 1 0 0 0 0 0 0 2
+            0 0 0 0 0 0 0 0 0 0
+            0 0 4 4 4 4 0 0 0 0
+            0 0 0 0 0 0 0 0 0 0
+            0 0 0 0 0 0 0 0 0 0
+            0 0 0 0 3 3 3 0 1 0
+            0 0 0 0 0 0 0 0 0 0
+
+играю в морской бой с Курицы		-- регает игру, если такая ещё не зарегана, с оппонентом Курицы
+									-- если игра с оппонентом Петухи уже зарегана Курицами, значит противники сконнектились и можно начинать игру
+
+
+
+
+мы закончили морской бой - после этой команды ввод юзера не обрабатывается модулем. Если игра началась - назначается победитель и статы игры сохраняются в {this_team_name}_vs_{opponent_team_name}_{datetime.now()}.yaml
+
+
+
+
+
+играю в морской бой с Курицы
+	если Курицы ещё не зареганы -> INVALID_OPPONENT_MSG
+	если у Петухи уже назначен оппонент -> OPPONENT_IS_ALREADY_SET (добавить отмену регистрации оппонента??? - сейчас для этого надо закончить сеанс игры (не удобно))
+	если Курицы зареганы и у Петухи не было оппонента -> OPPONENT_SET_OK (Курицы становятся оппонентом Петухов)
+		если у Куриц Петухи так же зареганы - можно начинать игру??
+		иначе -> WAITING_FOR_OPPONENT_MSG
+
+
+
+
+seabattle_team_data_{team_name}.yaml =
+	this_team: {
+		cap_uid: user_id/domain (captain uid),
+		team_name: str (may not be empty),
+		"bot_game": bool,
+		score: int,
+		field: [game field array (one or two-dimensional???)]
+		field_of_shots: [all the shots made TO this team],
+		shots_left: int,
+		score_per_hit: int,
+		question_answered: bool,
+		answered_questions: [{question_id: bool}]
+	}
+
+	# for tulen
+	opponent: {
+		cap_uid: tulen,
+		team_name: tulen,
+		"bot_game": True,
+		score: int,
+		field: [game field array (one or two-dimensional???)]
+		field_of_shots: [all the shots made AT this team],
+		shots_left: int,
+		score_per_hit: int,
+		question_answered: True,
+		answered_questions: []
+	}
+
+seabattle_game.yaml = {
+	teams: {
+		team_name: {
+			team_uid: uid,
+			team_chat_id: int
+		}
+	}
+	games: [{
+		team_name: "",
+		opponent_team_name: "",
+		bot_game: bool,
+		game_started: bool,
+		winner: ""
+		game_started_datetime: datetime,
+	}],
+	active_sessions: [{
+		session_uid: uid,
+		session_started: datetime,
+		questioned_game: bool
+	}]
+}
+
+{this_team_name}_vs_{opponent_team_name}_{datetime.now()}.yaml = {
+	winner: team_name,
+	looser: team_name,
+	winner_score: int,
+	looser_score: int,
+	game_started: datetime,
+	game_finished: datetime
+}
+
+
+Сценарии регистрации:
+1. gr (t1 -> t2):
+	a. no such game -> create game with t_name = t1, op_t_name = t2 -> answer, tell t2 he's awaited
+	b. t3 was set as opponent to t1 before -> change t3 to t2 and tell t3 that he's not awaited by t1 anymore
+	c. t3 was set as opponent to t2 before -> answer
+	d. t1 was set as opponent to t2 before -> start game (tell t1 and t2)

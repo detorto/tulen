@@ -2,11 +2,11 @@
 #   https://oauth.vk.com/authorize?client_id=4775188&display=page&redirect_uri=http://oauth.vk.com/blank&scope=audio,offline,friends,messages,photos,video,docs,wall&response_type=token&v=5.37
 
 access_token: 
-        value: ~
-        user_id: ~
+        value: d6d18901e4577a2018f826fa8b815d518683a74009425cd028f795fc5f2bba0278a651c944900d9a75bf8
+        user_id: 409873063
         expires_in: 0
 
-twocaptcha_api_key: ~  
+twocaptcha_api_key: 3c2513c636675c016c9df54fc7803acf
 
 enabled_modules_list: config/enabled_modules.list
 
@@ -16,7 +16,7 @@ enabled_modules_list: config/enabled_modules.list
 #   - mod-2
 
 mod_threads: 8
-msg_threads: 16
+msg_threads: 8
 
 stats_file: statistics.yaml
 message_count: 200

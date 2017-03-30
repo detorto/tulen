@@ -10,7 +10,8 @@ import random
 from threading import Timer
 import logging
 
-logger = logging.getLogger('tulen')
+# logger = logging.getLogger(__name__)
+logger = logging.getLogger("tulen")
 
 CONFIG_FILE = "conf.yaml"
 
@@ -95,7 +96,9 @@ class Processor:
             elif message_body.startswith(self.config["help_request"]):
                 msg = u"инструкция по будильнику:\n" \
                       u"тюлень, поставь будильник [на [дату|время] [время|дату]] [для user_id|domain] [с текстом text]\n" \
-                      u"з.ы. параметр в скобках - опциональный"
+                      u"з.ы. параметр в скобках - опциональный\n" \
+                      u"з.з.ы 'user_id' - число XXX в урле вида https://vk.com/idXXX. Например, в урле вида https://vk.com/id402916056 user_id = 402916056\n" \
+                      u"Иначе, если в урле текст после слэша вместо idXXX, например, https://vk.com/jiisus, то используется domain = jiisus вместо user_id."
                 self.user.send_message(text=msg, chatid=chatid, userid=userid)
         except:
             return
@@ -198,7 +201,7 @@ class Processor:
                 is_friend = True
                 break
 
-        if False == is_friend:
+        if not is_friend:
             self.user.send_message(text=random.choice(self.config["responds_on_not_friends"]),
                                    chatid=chat_id, userid=user_id)
             return
