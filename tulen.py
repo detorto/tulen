@@ -1,115 +1,86 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-
-#import vk
-
-import urllib2
-import requests
-
-import pkgutil
-import imp
-import os
-
-import threading
-import json
-import time
-
 from vkuser import VkUser
 import sys
 import traceback
 import io
 from optparse import OptionParser
 import yaml
-
-import multiline_formatter
 import logging
+import logging.config
+import utils
 
 LOG_SETTINGS = {
-'version': 1,
-'handlers': {
-    'console': {
-        'class': 'logging.StreamHandler',
-        'level': 'INFO',
-        'formatter': 'default',
-        'stream': 'ext://sys.stdout',
-    },
-},
-'formatters': {
-    'default': {
-        '()': 'multiline_formatter.formatter.MultilineMessagesFormatter',
-        'format': '[%(levelname)s] %(message)s'
-            },
-},
-'loggers': {
-    'tulen': {
-        'level':'DEBUG',
-        'handlers': ['console',]
+    'version': 1,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'level': 'INFO',
+            'formatter': 'default',
+            'stream': 'ext://sys.stdout',
         },
-}
+    },
+    'formatters': {
+        'default': {
+            '()': 'multiline_formatter.formatter.MultilineMessagesFormatter',
+            'format': '[%(levelname)s] %(message)s'
+        },
+    },
+    'loggers': {
+        'tulen': {
+            'level': 'DEBUG',
+            'handlers': ['console', ]
+        },
+    }
 }
 
 logging.config.dictConfig(LOG_SETTINGS)
 logger = logging.getLogger("tulen")
 
-
-def process(config, testmode):
-    
-    def update_stat(stat, value):
-        stats_file_path = config.get("stats_file", "statistics.yaml");
-        
+def run_processing(vkuser):
+    def process_messages(vkuser):
         try:
-            f = yaml.load(open(stats_file_path))
+            msg = vkuser.poll_messages()
+            vkuser.process_messages(msg)
         except:
-            f = None
+            logger.exception("Something wrong while processing dialogs")
+            if vkuser.testmode:
+                return False
+            
+        return True
 
-        if f:
-            upd = f.get(stat, 0)
-            upd += value;   
-            f[stat] = upd
-        else:
-            f = {stat:1}
+    while process_messages(vkuser):
+        pass
         
-        with io.open(stats_file_path, 'w', encoding='utf-8') as fo:
-            fo.write(unicode(yaml.dump(f)))
-        logger.info("Updated statistic: {} :+{}".format(stat,value))
+def prepareUser(config, testmode, onlyforuid):
+    vkuser = VkUser(config, testmode, onlyforuid)
     
-
-    
-    vkuser = VkUser(config, update_stat, testmode)
     logger.info("Created user api")
     logger.info("Starting processing... ")
-    while True:
-        try:
-            vkuser.process_all_messages()
-        except:
-            logger.error("Something wrong while processin dialogs")
-            exc_type, exc_value, exc_traceback = sys.exc_info()
-            logger.error("\n".join(traceback.format_exception(exc_type, exc_value, exc_traceback)))
-            if testmode:
-                raise
-            continue
-
+    
+    return vkuser
+    
 def main():
     parser = OptionParser()
     parser.add_option("-c", "--config", dest="config",
-                        help="configuration file to use", default="access.yaml", metavar="FILE.yaml")
+                      help="configuration file to use", default="access.yaml", metavar="FILE.yaml")
     parser.add_option("-t", "--test", dest="testmode",
-                        help="test mode", action="store_true", default=False)
+                      help="test mode", action="store_true", default=False)
 
+    parser.add_option("-o", "--onlyforuid", dest="onlyforuid",
+                      help="work only with master's messages")
 
     (options, args) = parser.parse_args()
-    logger.info ( "*************Tulen vk.com bot****************" )
 
-    config = yaml.load(open(options.config));
+    logger.info("*************Tulen vk.com bot****************")
 
-    
-    
+    config = utils.load_yaml(options.config)
+
     logger.info("Loaded configuration ")
     logger.info(yaml.dump(config))
-    
-    process(config, options.testmode)
-    
+    user = prepareUser(config, options.testmode, options.onlyforuid)
+    run_processing(user)
+
 if __name__ == '__main__':
     main()
-

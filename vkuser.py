@@ -1,35 +1,86 @@
-import vk
+# coding: utf-8
 import time
 import json
 import requests
-from utils import *
 import io
 import sys
-import traceback
-from multiprocessing.pool import ThreadPool
-import multiprocessing
 import os
 import logging
 import random
+import threading
+from multiprocessing.pool import ThreadPool
+import multiprocessing
+
+import vk
+import utils
+import vkrequest
 
 logger = logging.getLogger('tulen')
+logger.setLevel(logging.DEBUG)
+
+vk_script_getmsg = """var k = 200;
+var messages = API.messages.get({"count": k});
+
+var ids = "";
+var a = k;  
+while (a >= 0) 
+{ 
+ids=ids+messages["items"][a]["id"]+",";
+a = a-1;
+}; 
+ids = ids.substr(0,ids.length-1);
+API.messages.markAsRead({"message_ids":ids});
+
+return messages;"""
+
 
 class VkUser(object):
+    #return the file form config directory for module name
+    #used by modules
+    def module_file(self,  modname, filename):
+        return os.path.join(self.config.get("modules_config_dir", "config"),modname, filename)
+    
+    def init_globals(self):
+        # for proper random
+        random.seed(time.time())
 
-    def __init__(self, config, update_stat, testmode = False):
-        self.config = config
+        # captcha init: if no captcha section in config, pass it
+        captcha_config = self.config.get("anticaptcha", None)
+        if not captcha_config:
+            logger.warning("Anticaptcha cant be intialized: no config")
 
-        self.update_stat_ = update_stat
+        else:
 
-        if testmode:
-            session = None
+            service = captcha_config["service"]
+            creds = captcha_config["credentials"]
+            vkrequest.init_captcha(service, creds)
+            logger.info("Captcha [{}] initialized. balance: {}".format(service,
+                                                                       vkrequest.captcha.balance()))
+
+        # enable ratelimiting
+        vkrequest.run_ratelimit_dispatcher()
+
+        logger.info("Rate-limit dispatcher started")
+
+        logger.info("Global systems initialized")
+
+    def init_vk_session(self):
+        if self.testmode:
             self.api = None
-            logger.info("Running in test mode")
+            logger.info("VK Session: test mode")
         else:
             session = vk.Session(access_token=self.config["access_token"]["value"])
-            self.api = vk.API(session,  v='5.60', timeout = 10)
-            logger.info("VK API created")
-        
+
+            timeout = self.config["access_token"].get("connection_timeout", 10)
+            self.my_uid = self.config["access_token"]["user_id"]
+            if not self.my_uid:
+                raise RuntimeError("Access config: user_id not defined")
+
+            self.api = vk.API(session,  v='5.50', timeout=timeout)
+
+            logger.info("VK Session: real mode [{}]".format(self.my_uid))
+
+    def init_modules(self):
         modules_list_file = self.config.get("enabled_modules_list", None)
 
         if not modules_list_file:
@@ -40,326 +91,405 @@ class VkUser(object):
         mods = [m for m in mods if not m.startswith("#")]
         if not mods:
             raise RuntimeError("Can't find any module to load!")
+
         logger.info("Enabled modules: [{}]".format(",".join(mods)))
-        
+
         self.load_modules(mods)
-
-        self.thread_pool_modules = ThreadPool(int(config.get("mod_threads", 4)))
-        self.thread_pool_msg = ThreadPool(int(config.get("msg_threads", 4)))
-        self.mutex = multiprocessing.Lock()
-        logger.info("Multiprocessing intiated: "+str(self.thread_pool_modules) + " "+ str(self.thread_pool_modules))
-        self.testmode = testmode
-
+        logger.info("All modules loaded.")
 
     def load_modules(self, mod_list):
+        self.modules = {"global":[], "unique":[], "parallel": []}
 
-        self.modules = []
+        def add_module(modif, modproc):
+            modules = self.modules.get(modif, [])
+            modules.append(modproc)
+            self.modules[modif] = modules
 
         for module in mod_list:
+            data = module.split()
+            modif = "parallel"
+            module = data[0]
+            if len(data) > 1:
+                modif = data[0]
+                module = data[1]
+
             package = __import__("modules"+"."+module)
             processor = getattr(package, module)
             modprocessor = processor.Processor(self)
-            self.modules.append(modprocessor)
-            self.exclusive_modules = [m for m in self.modules if getattr(m,"exclusive",False) == True]        
-            self.parallel_modules = [m for m in self.modules if not getattr(m,"exclusive",False)== True]
 
-            logger.info("Loaded module: [{}]".format("modules"+"."+module))
+            add_module(modif, modprocessor)
 
-    def module_file(self,  modname, filename):
-        return os.path.join(self.config.get("modules_config_dir", "config"),modname, filename)
+            logger.info("Loaded module: [{}] as {}".format(
+                "modules"+"."+module, modif))
 
-    def update_stat(self, stat, value):
-        logger.debug("Mutex acuire")
-        self.mutex.acquire()
-        logger.debug("Mutex acuired")
-        self.update_stat_(stat, value)
-        self.mutex.release()
-        logger.debug("Mutex released")
+    def init_multithreading(self):
+        self.msg_queue = {}
 
-    def process_all_messages(self):
-        logger.debug("Retrieving messages")
+        # create message queue: general (first step for uniq modules)
+        self.msg_queue["general"] = multiprocessing.Queue()
+        # create message queues: paralel (for parallel message processing)
+        self.msg_queue["parallel"] = multiprocessing.Queue()
+
+        self.msg_processors = {}
+
+        # create threads for general messages, and for parallel mesages
+        # they will pick-up messages from queues
+        msg_thread_count = int(self.config.get("msg_threads", 4))
+        mod_thread_count = int(self.config.get("mod_threads", 4))
+
+        self.msg_processors["general"] = [threading.Thread(target=self.process_message_general)
+                                          for x in range(msg_thread_count)]
+        self.msg_processors["parallel"] = [threading.Thread(target=self.process_message_parallel)
+                                           for x in range(mod_thread_count)]
+        # lauch this threads
+        [t.start() for t in self.msg_processors["general"]]
+        [t.start() for t in self.msg_processors["parallel"]]
+
+        logger.info("Multithreading intialized: {}x{} grid.".format(
+            msg_thread_count, mod_thread_count))
+
+    def __init__(self, config, testmode=False, onlyforuid=None):
+        self.config = config
+        if onlyforuid:
+            onlyforuid = int(onlyforuid)
+        self.onlyforuid = onlyforuid
+        self.testmode = testmode
+
+        self.init_globals()
+        self.init_vk_session()
+        self.init_modules()
+
+        self.init_multithreading()
+        logger.info("All intializing complete")
+
+    def poll_messages(self):
         if self.testmode:
             msg = raw_input("msg>> ")
             msg = msg.decode('utf-8')
-            messages = [{"read_state":0, "id":"0","body":msg,"chat_id":2}]
+            messages = [
+                {"read_state": 0, "id": "0", "body": msg, "chat_id": 2}]
         else:
-            operation = self.api.messages.get
-            args = {"count" : self.config["message_count"]}
-            ret = rated_operation( operation, args )
+            operation = self.api.execute
+            args = {"code": vk_script_getmsg}
+            ret = vkrequest.perform(operation, args)
             messages = ret["items"]
 
-        self.process_messages(messages)
+        return messages
 
-    def get_all_friends(self, fields):
-        logger.debug("Retrieving messages")
+    def process_messages(self, messages):
+        unread_messages = [msg for msg in messages if msg["read_state"] == 0]
 
-        operation = self.api.friends.get
-        args = {"fields": fields}
-        return rated_operation(operation, args)
+        # filter messages if they are for specified uid
+        if self.onlyforuid:
+            unread_messages = [msg for msg in unread_messages if msg[
+                "user_id"] == self.onlyforuid]
 
-    def mark_messages(self, message_ids):
-        logger.debug("Marking messages: {}".format(",".join([str(a) for a in message_ids])))
-        if self.testmode:
-            return
+        if len(unread_messages) > 0:
+            logger.info("Unread messages: {}".format(len(unread_messages)))
 
-        operation = self.api.messages.markAsRead
-        args = {"message_ids" : ",".join([str(x) for x in message_ids])}
-        rated_operation( operation, args )
+            # global modes cant stop the message, i think
+            for m in unread_messages:
+                self.process_message_global(m)
 
+            logger.debug("Sending messages to general queue [{}]".format(len(unread_messages)))
 
-    def proc_msg_(self,message):
-        logger.debug("Processing msg {}".format(str(message)))
-        
-        chatid = message.get("chat_id",None)
+            [self.msg_queue["general"].put(message) for message in unread_messages]
+
+    def process_message_global(self, message):
+        try:
+            for mod in self.modules["global"]:
+                self.process_message_in_module(mod, message)
+        except:
+            logger.exception("Error in global modules processing")
+
+    def process_message_in_module(self, module, message):
+
+        # because VK want only user_id or chat_id, and chat_id in priority
+        chatid = message.get("chat_id", None)
         userid = None
 
         if not chatid:
             userid = message.get("user_id", None)
-        
-        def thread_work(data):
+
+        return module.process_message(message, chatid, userid)
+    # general processing thread: picks messages from general queue
+
+    def process_message_general(self):
+
+        def process_in_unique_modules(message):
+            for m in self.modules["unique"]:
+                if self.process_message_in_module(m, message) == True:
+                    logger.info("Unique module {} worked".format(m.__class__))
+                    return True
+            return False
+
+        while True:
             try:
-                return data[0].process_message(message=data[1], chatid=data[2], userid=data[3])
+                message = self.msg_queue["general"].get()
+
+                # if one of the uniq modules returned true, do not process
+                # message next
+                if process_in_unique_modules(message):
+                    # pick new message
+                    continue
+
+                logger.info("Sending message to parallel modules")
+                # multiply message in count of parallel module.
+                # processor will take it and use corresponding module
+                # cant pass in it the module itself, because thread obj cant be
+                # pickled
+                for i, _ in enumerate(self.modules["parallel"]):
+                    self.msg_queue["parallel"].put((message, i))
             except:
-                logger.error("Something wrong while processin {}".format(str(data)))
-                exc_type, exc_value, exc_traceback = sys.exc_info()
-                logger.error("\n".join(traceback.format_exception(exc_type, exc_value, exc_traceback)))
-                self.update_stat("errors", 1)
+                logger.exception("Processing in general failed")
 
-        logger.debug("Mapping message between modules")
-        print "Exmods:", len(self.exclusive_modules)        
-        for m in self.exclusive_modules:
-	
-            if thread_work((m, message, chatid, userid)) == True:
-                print "Excl module", m.__class__, "worked"
-                return 
- 
-        self.thread_pool_modules.map_async(thread_work, [(module, message, chatid, userid) for module in self.parallel_modules])
+    def process_message_parallel(self):
+        while True:
+            try:
+                message, module_index = self.msg_queue["parallel"].get()
+                logger.debug("Parallel message processing in {}"
+                             .format(self.modules["parallel"][module_index].__class__))
 
-    def process_messages(self, messages):
-        ids = [msg["id"] for msg in messages]
-        self.mark_messages(ids)
+                self.process_message_in_module(
+                    self.modules["parallel"][module_index], message)
+            except:
+                logger.exception("Processing in parallel failed")
 
-        unread_messages = [ msg for msg in messages if msg["read_state"] == 0]
-        if len(unread_messages) > 0:
-            logger.info("Unread messages: {}".format("\n".join([m["body"].encode("utf8") for m in unread_messages])))
-
-        if len(unread_messages) > 0:
-            logger.debug("Mapping message between msg processors [{}]".format(len(unread_messages)))
-            self.thread_pool_msg.map_async(self.proc_msg_, unread_messages)
-            self.update_stat("processes",len(unread_messages))
-
+    # shorcuts for common-use vk-api requests
     def send_message(self, text="", chatid=None, userid=None, attachments=None):
-        try:       
-            logger.info("Sending msg [{}] to c[{}]:u[{}] with attachment [{}]".format(text,
-                                                                                    chatid,
-                                                                                    userid,
-                                                                                    repr(attachments)))
-        except:
-            logger.info("Sending some unformated !!!!! msg to {}:{}".format(chatid,userid))
         if self.testmode:
-            print "----",text, attachments
-            return 
+            print("----", text, attachments)
+            return
 
         if not attachments:
             attachments = {}
-            
-        op = self.api.messages.send
-        if isinstance(userid, (int, long)):
-            args = {"chat_id" :chatid, "user_id" : userid, "message" : text, "attachment" : attachments}
-        else:
-            args = {"chat_id": chatid, "domain": userid, "message": text, "attachment": attachments}
-        ret = rated_operation(op, args)
-        
-        if not ret:
-            logger.warning("No answer for operation")
 
-        self.update_stat("send", 1)
+        op = self.api.messages.send
+
+        # some utf magic
+        try:
+            text = text.decode("utf-8")
+        except:
+            pass
+
+        # change some cirillic to latin
+        # for not to triger another tulen
+        text = text.replace(u"а", u"a")
+        text = text.replace(u"е", u"e")
+        text = text.replace(u"о", u"o")
+        text = text.replace(u"с", u"c")
+
+        # to send message for username, not userid
+        args = {"chat_id": chatid, "message": text, "attachment": attachments,
+                "random_id": random.randint(0xfff, 0xffffff)}
+
+        if isinstance(userid, (int, long)):
+            args.update({"user_id": userid})
+        else:
+            args.update({"domain": userid})
+
+        ret = vkrequest.perform(op, args)
+
+        if not ret:
+            logger.warning("No answer for send message request")
+
+        logger.info("Sent message to c[{}]:u[{}] with attachment [{}]".format(chatid,
+                                                                              userid,
+                                                                              repr(attachments)))
+
+        logger.info("response is {}".format(repr(ret)))
+        return ret
+
+    def get_all_friends(self, fields):
+        operation = self.api.friends.get
+        args = {"fields": fields}
+        ret = vkrequest.perform(operation, args)
+        logger.info("Got friends")
+        return ret
 
     def send_sticker(self, user_id, peer_id, chat_id, sticker_id=0):
         op = self.api.messages.sendSticker
+
+        args = {"peer_id": peer_id, "chat_id": chat_id,
+                "random_id": random.randint(0xfff, 0xffffff),
+                "sticker_id": random.randint(1, 168) if sticker_id == 0 else sticker_id}
+
         if isinstance(user_id, (int, long)):
-            args = {"user_id": user_id, "peer_id": peer_id, "chat_id": chat_id,
-                    "random_id": random.randint(0xfff, 0xffffff),
-                    "sticker_id": random.randint(1, 168) if sticker_id == 0 else sticker_id}
+            args.update({"user_id": user_id})
         else:
-            args = {"domain": user_id, "peer_id": peer_id, "chat_id": chat_id,
-                    "random_id": random.randint(0xfff, 0xffffff),
-                    "sticker_id": random.randint(1, 168) if sticker_id == 0 else sticker_id}
-        ret = rated_operation(op, args)
+            args.update({"domain": user_id})
+
+        ret = vkrequest.perform(op, args)
+
+        # wtf???
         if ret == 100 or (900 <= ret <= 902):
+            logger.warning("Sent sticker response is {}".format(repr(ret)))
             args["random_id"] = random.randint(0xfff, 0xffffff)
             args["sticker_id"] = random.randint(1, 168)
-            return rated_operation(op, args)
+            ret = vkrequest.perform(op, args)
+
+        logger.info("Sent sticker")
         return ret
 
     def post(self, text, chatid, userid, attachments):
-	#return None
+
         oppost = self.api.wall.post
-        args = {"owner_id" :int(self.config["access_token"]["user_id"]), "message" : text, "attachments" : ",".join(attachments)}
-            
-        print "Posting on wall"
-        print pretty_dump(args)
+        args = {"owner_id": self.my_uid, "message": text,
+                "attachments": ",".join(attachments)}
 
         ret = rated_operation(oppost, args)
-        
-        self.update_stat("attachments", len(attachments))
-        self.update_stat("post", 1)
+        log.info("Wall post created")
+
         return ret
 
-    def __upload_images(self, upserver, files):
+    def __upload_images_vk(self, upserver, files):
         photos = []
         for f in files:
             op = requests.post
-            args = {"url" : upserver["upload_url"], "files" : {'photo': (f.split("/")[-1], open(f, 'rb'))}}
+            filename = f.split("/")[-1]
+            args = {"url": upserver["upload_url"], "files": {'photo': (filename, open(f, 'rb'))}}
             try:
-                response = op(**args)
-                pj =  response.json()
-                ph = {"photo":pj["photo"], "server":pj["server"],"hash":pj["hash"]}
+                # i think we do not need to use rate-limit operation here
+                response = vkrequest.perform_now(op, args)
+                ph = {"photo": response["photo"], 
+                      "server": response["server"], 
+                      "hash": response["hash"]}
                 photos.append(ph)
             except:
-                print "Error in photo uploading"
+                logger.exception("Upload images failed")
+
         return photos
 
     def upload_images_files(self, files):
+        logger.info("Uploading message images...")
         op = self.api.photos.getMessagesUploadServer
         args = {}
-        upserver = rated_operation(op, args)
-        
-        ids = self.__upload_images(upserver, files)
-        
+
+        upserver = vkrequest.perform(op, args)
+        ids = self.__upload_images_vk(upserver, files)
+        logger.info("Uploaded message images")
         attachments = []
+
         for i in ids:
             try:
                 op = self.api.photos.saveMessagesPhoto
-                args = {"photo":i["photo"], "server":i["server"], "hash":i["hash"]}
+                args = {"photo": i["photo"], "server": i[
+                    "server"], "hash": i["hash"]}
 
-                resp = rated_operation(op, args)
-                print "Uload resp:",resp
-                attachments.append("photo"+str(resp[0]["owner_id"])+"_"+str(resp[0]["id"]))
+                resp = vkrequest.perform(op, args)
+                attachments.append(
+                    "photo"+str(resp[0]["owner_id"])+"_"+str(resp[0]["id"]))
             except:
-
-                print "Error in photo saving:"
+                logger.exception("Saving message image failed")
                 return None
 
-        self.update_stat("images_uploaded", len(attachments))
-    
         return attachments
 
     def upload_images_files_wall(self, files):
-        #return [] 
-        op = self.api.photos.getWallUploadServer
-        args = {"group_id":int(self.config["access_token"]["user_id"])}
-        upserver = rated_operation(op, args)
 
-        photos = self.__upload_images(upserver,files)
-        
+        logger.info("Uploading wall images...")
+        op = self.api.photos.getWallUploadServer
+        args = {"group_id": self.my_uid}
+
+        upserver = vkrequest.perform(op, args)
+        photos = self.__upload_images(upserver, files)
+        logger.info("Uploaded wall images")
         ids = photos
         attachments = []
         for i in ids:
             try:
                 op = self.api.photos.saveWallPhoto
-                args = {"user_id":int(self.config["access_token"]["user_id"]),"group_id":int(self.config["access_token"]["user_id"]), "photo":i["photo"], "server":i["server"], "hash":i["hash"]}
+                args = {"user_id": self.my_uid,
+                        "group_id": self.my_uid,
+                        "photo": i["photo"],
+                        "server": i["server"],
+                        "hash": i["hash"]}
 
-                resp = rated_operation(op, args)
-        
-                attachments.append("photo"+str(resp[0]["owner_id"])+"_"+str(resp[0]["id"]))
+                resp = vkrequest.perform(op, args)
+                attachments.append(
+                    "photo"+str(resp[0]["owner_id"])+"_"+str(resp[0]["id"]))
             except:
+                logger.exception("Saving wall image failed")
                 raise
-                print "Error in photo saving:"
-                return None
 
         return attachments
 
-    def find_audio(self, req):
-        print "Audio", req
-        op = self.api.audio.search
-        args = {"q":req, "auto_complete" : 1, "search_own" : 0, "count" : 1}
-
-        resp = rated_operation(op, args)
-    
-        try:
-            audio = resp["items"][0]
-            self.update_stat("audio_found", 1)
-
-            r = "audio"+str(audio["owner_id"])+"_"+str(audio["id"])
-            return [r,]
-        except:
-            print "Error in audio find:"
-            print pretty_dump(resp)
-            return None
-
     def find_video(self, req):
-        print "Find video",req
+        log.info("Looking for requested video")
         op = self.api.video.search
-        args = {"q":req, "adult":1, "search_own":0, "count":1}
-        resp = rated_operation(op,args)
+        args = {"q": req, "adult": 0, "search_own": 0, "count": 1}
+        resp = vkrequest.perform(op, args)
         try:
             video = resp["items"][0]
-            self.update_stat("video_found", 1)
-            r =  "video"+str(video["owner_id"])+"_"+str(video["id"])
-            return [r,]
+            r = "video"+str(video["owner_id"])+"_"+str(video["id"])
+            return [r, ]
         except:
-            print "Error in video find:"
-            print pretty_dump(resp)
+            logger.exception("Video search failed")
             return None
 
     def find_doc(self, req):
-            print "Find doc",req
-            op = self.api.docs.search
-            args = {"q":req, "count":1}
-            resp = rated_operation(op,args)
-            try:   
-                    doc = resp["items"][0]
-                    self.update_stat("docs_found", 1)
-                    r =  "doc"+str(doc["owner_id"])+"_"+str(doc["id"])
-                    return [r,]
-            except:
-                    print "Error in video find:"
-                    print pretty_dump(resp)
-                    return None
+        log.info("Looking for document")
+        op = self.api.docs.search
+        args = {"q": req, "count": 1}
+        resp = vkrequest.perform(op, args)
+        try:
+            doc = resp["items"][0]
+            r = "doc"+str(doc["owner_id"])+"_"+str(doc["id"])
+            return [r, ]
+        except:
+            logger.exception("Document logging failed")
+            return None
 
     def find_wall(self, req):
-            print "Find wall",req
-            op = self.api.newsfeed.search
-            args = {"q":req, "count":1}
-            resp = rated_operation(op,args)
-            try:
-                    wall = resp["items"][0]
-                    self.update_stat("walls_found", 1)
-                    r =  "wall"+str(wall["owner_id"])+"_"+str(wall["id"])
-                    return [r,]
-            except:
-                    print "Error in video find:"
-                    print pretty_dump(resp)
-                    return None
+        log.info("Looking for wall post")
+        op = self.api.newsfeed.search
+        args = {"q": req, "count": 1}
+        resp = vkrequest.perform(op, args)
+        try:
+            wall = resp["items"][0]
+            r = "wall"+str(wall["owner_id"])+"_"+str(wall["id"])
+            return [r, ]
+        except:
+            logger.exception("Wall post search failed")
+            return None
 
     def get_news(self, count=10):
-            op = self.api.newsfeed.get
-            args = {"filters":"post", "count":count}
-            resp = rated_operation(op,args)
-            return resp["items"]
-    
+        logger.info("Gathering newsfeed")
+        op = self.api.newsfeed.get
+        args = {"filters": "post", "count": count}
+        resp = vkrequest.perform(op, args)
+        return resp["items"]
+
     def like_post(self, post_id, owner_id):
-            op = self.api.likes.add
-            args = {"type":"post", "item_id":post_id, "owner_id":owner_id}
-            resp = rated_operation(op,args)
+        logger.info("Liking post")
+        op = self.api.likes.add
+        args = {"type": "post", "item_id": post_id, "owner_id": owner_id}
+        resp = vkrequest.perform(op, args)
 
-
-    def friendStatus(self, user_id):
+    def friendStatus(self, user_ids):
+        logger.info("Getting friend status")
         op = self.api.friends.areFriends
-        args = {"user_ids":user_id}
-        resp = rated_operation(op,args)
-        return resp[0]["friend_status"]
+        args = {"user_ids": user_ids}
+        resp = vkrequest.perform(op, args)
+        return resp
 
-    def getUser(self,userid,fields,name_case):
+    def getUser(self, userid, fields, name_case):
+        logger.info("Getting user information")
         op = self.api.users.get
-        args = {"user_ids":userid,"fields":fields,"name_case":name_case}
-        resp = rated_operation(op,args)
+        args = {"user_ids": userid, "fields": fields, "name_case": name_case}
+        resp = vkrequest.perform(op, args)
         return resp[0]
 
-
-    def friendAdd(self, user_id ):
+    def friendAdd(self, user_id):
+        logger.info("Adding to friends")
         op = self.api.friends.add
-        args = {"user_id":user_id}
-        resp = rated_operation(op,args)
+        args = {"user_id": user_id}
+        resp = vkrequest.perform(op, args)
         return True
+
+    def getRequests(self):
+        logger.info("Getting  friends requests")
+        op = self.api.friends.getRequests
+        args = {}
+        resp = vkrequest.perform(op, args)
+        return resp["items"]

@@ -2,19 +2,24 @@
 #   https://oauth.vk.com/authorize?client_id=4775188&display=page&redirect_uri=http://oauth.vk.com/blank&scope=audio,offline,friends,messages,photos,video,docs,wall&response_type=token&v=5.37
 
 access_token: 
-    expires_in: 0
-    user_id: ~
-    value: ~
-  
+        value: ~
+        user_id: ~
+        expires_in: 0
+        connection_timeout: 10
+
+anticaptcha:
+    service: 2captcha
+    credentials: ~
+
 enabled_modules_list: config/enabled_modules.list
 
-#you can do so
+#also you can do so
 #enabled_modules: 
 #   - mod-1
 #   - mod-2
 
-mod_threads: 1
-msg_threads: 1
+mod_threads: 8
+msg_threads: 8
 
 stats_file: statistics.yaml
 message_count: 200
