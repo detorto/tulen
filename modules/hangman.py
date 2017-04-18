@@ -91,10 +91,10 @@ class Processor:
 
     def load_random_word(self):
         lines = open(self.user.module_file("hangman", self.config["regular_dict"])).readlines()
-        lines = [ l.decode("utf-8")[:-2] for l in lines ]
+        lines = [ l.strip() for l in lines ]
         
         slines = open(self.user.module_file("hangman", self.config["secret_dict"])).readlines()
-        slines = [ l.decode("utf-8")[:-2] for l in slines ]
+        slines = [ l.strip() for l in slines ]
         
         a = lines
         if random.randint(0,100) < 20:
@@ -120,8 +120,8 @@ class Processor:
             self.game_context = {"word":self.load_random_word(), "opened": [], "errors":[], "session_started":False }
 
     def generate_message(self):
-        print self.game_context
-        print self.game_context["word"]
+ #       print self.game_context
+#        print self.game_context["word"]
         imgp = len(self.game_context["errors"])
 
         if imgp >= len(images):

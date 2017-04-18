@@ -2,14 +2,14 @@
 #   https://oauth.vk.com/authorize?client_id=4775188&display=page&redirect_uri=http://oauth.vk.com/blank&scope=audio,offline,friends,messages,photos,video,docs,wall&response_type=token&v=5.37
 
 access_token: 
-        value: ~
-        user_id: ~
+        value: 5980883af8fbe5f630e5a1898697c0690070d8c9ee93124669fc71047c48d8943b20b1789b26a9534dcfd
+        user_id: 409873063
         expires_in: 0
         connection_timeout: 10
 
 anticaptcha:
     service: 2captcha
-    credentials: ~
+    credentials: 3c2513c636675c016c9df54fc7803acf
 
 enabled_modules_list: config/enabled_modules.list
 

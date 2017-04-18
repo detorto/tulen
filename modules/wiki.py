@@ -24,7 +24,7 @@ def save_images(page):
 	for i,img in enumerate(page.images):
 		fname = img.split("/")[-1];
 		if img.endswith(IMAGES_EXT) and "Aquote" not in fname and "Commons-logo" not in fname and "Wiktionary" not in fname:
-			print fname	
+			
 			urllib.urlretrieve(img, "./files/"+fname)
 			local_images.append("./files/"+fname)
 			counter += 1

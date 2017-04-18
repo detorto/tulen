@@ -50,7 +50,7 @@ def card_cost(card, scores):
 
 def shuffle_cards():
     import copy
-    #print cards
+    
     cc = copy.copy(cards)
     random.shuffle(cc)
     return cc
@@ -185,8 +185,7 @@ class Processor:
 
 
         def save_context(self):
-                #print "Saving context"
-                #print self.game_context
+               
                 with io.open(PATH.format(0), 'w', encoding='utf-8') as f:
                         f.write(unicode(json.dumps(self.game_context, ensure_ascii=False,indent=4, separators=(',', ': '))))
 
@@ -227,7 +226,7 @@ class Processor:
             return self.game_context["gamers"][uid]["money"]
         
         def add_money(self, num, uid):
-            print "Adding money {} to  {}".format(num,uid)
+            
             if uid in self.game_context["gamers"].keys():
                 self.game_context["gamers"][uid]["money"]+=num
             else:
@@ -270,7 +269,7 @@ class Processor:
             for it in self.game_context["user_bets"]:
                 self.add_money(it[1],it[0])
         def refund_users(self, we_win):
-            print "refunding"
+            
             utotal = self.total_on_user()
             btotal = self.total_on_bot()
             k = 0;
@@ -280,7 +279,7 @@ class Processor:
                 else:
                     k = float(btotal)/float(utotal)
 
-                print "Ration is ", k
+                
 
                 for it in self.game_context["user_bets"]:
                     self.add_money(it[1]+it[1]*k,it[0])
@@ -289,7 +288,7 @@ class Processor:
                     k = 0
                 else:
                     k = float(utotal)/float(btotal)
-                print "Ration is ", k
+                
                 
                 for it in self.game_context["bender_bets"]:
                     self.add_money(it[1]+it[1]*k,it[0])
@@ -359,8 +358,8 @@ class Processor:
                                 return    
                             if not bet:
                                 return
-                            print "Bet on bot ", bet
-                            text = self.process_bet_on_bot(message["user_id"],bet)
+                            
+                            text = self.process_bet_on_bot(message["user_id"],abs(bet))
                             self.save_context()
                             self.user.send_message(text, chatid=chatid, userid=userid)        
                             return True
@@ -373,8 +372,8 @@ class Processor:
                                 return    
                             if not bet:
                                 return
-                            print "Bet on bot ", bet
-                            text = self.process_bet_on_bot(message["user_id"],bet)
+                            
+                            text = self.process_bet_on_bot(message["user_id"],abs(bet))
                             self.save_context()
                             self.user.send_message(text, chatid=chatid, userid=userid)        
                             return True
@@ -386,24 +385,11 @@ class Processor:
                                 bet = int(message_body[len(u"ставлю на нас"):])
                             except:
                                 return
-                            print "Bet on user: ", bet
+                            
                             if not bet:
                                 return    
-                            text = self.process_bet_on_user(message["user_id"],bet)
+                            text = self.process_bet_on_user(message["user_id"],abs(bet))
                             self.save_context()
                             self.user.send_message(text, chatid=chatid, userid=userid)        
                             return True
                         return
-
-if __name__ == '__main__':
-        class user:
-                def send_message(self,text,chatid,userid):
-                        print text
-                user = "asdasd"
-        p = Processor({u"react_on":u"блекджек"}, user())
-
-        while True:
-                msg = raw_input(">> ")
-                import sys
-                p.process_message({"user_id":sys.argv[1],"body":msg.decode("utf-8")},0,0)
-

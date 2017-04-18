@@ -2,40 +2,51 @@
 # -*- coding: utf-8 -*-
 
 import  urllib
+
 import requests
 import time
-import urlparse
+import urllib as urlparse
 import sys
 import random
-
 from bs4 import BeautifulSoup
 import requests
 import re
-import urllib2
+import tempfile
 import os
+import logging 
 
-#from apscheduler.schedulers.background import BackgroundScheduler
-MAX_IMAGES = 15
-CURRENT_IMAGE=0
+logger = logging.getLogger("tulen.googleimg")
+YANDEX_URL = "https://yandex.ru/images/search?{}"
 
-from twill import get_browser
-b = get_browser()
+headers = {'User-Agent': "Mozilla/5.0 (Windows NT 6.3; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/37.0.2049.0 Safari/537.36",
+           'Accept':'*/*'}
 
-from twill.commands import *
 
+class AppURLopener(urllib.request.FancyURLopener):
+    version = headers["User-Agent"]
+
+urllib._urlopener = AppURLopener()
 
 session = requests.Session()
-
-
-def get_new_file_path():
-    global MAX_IMAGES
-    global CURRENT_IMAGE
+session.headers.update(headers)
+cookies = {}
+max_file_i = 100
+ci = 0
+def get_new_file_name():
+#    return tempfile._get_candidate_names()
+    global ci    
+    while True:
+        ci += 1
+        ci = ci % max_file_i
+        yield str(ci)
         
-    CURRENT_IMAGE += 1;
-    CURRENT_IMAGE = CURRENT_IMAGE%MAX_IMAGES
-    
-    return "./files/google_image{}.jpg".format(CURRENT_IMAGE)
 
+def get_html(url):
+    global cookies
+    r = session.get(url,cookies=cookies)
+    
+    cookies.update(session.cookies.get_dict())
+    return r.text
 
 def encoded_dict(in_dict):
     out_dict = {}
@@ -48,94 +59,79 @@ def encoded_dict(in_dict):
         out_dict[k] = v
     return out_dict
 
-def download_image(url,filename):
-    req = urllib2.Request(url, None, headers)
-    raw_img = urllib2.urlopen(req).read()
-    f = open(filename, 'wb')
-    f.write(raw_img)
-    f.close()
-    return filename
+def make_soup(query):
+    query = urllib.urlencode(encoded_dict({"text":query}))
+    page = get_html(YANDEX_URL.format(query))
+    return BeautifulSoup(page, "html.parser")
 
-headers = {'User-Agent': "Mozilla/5.0 (Windows NT 6.3; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/37.0.2049.0 Safari/537.36",
-           'Accept':'*/*'}
-add_extra_header("User-Agent", "Mozilla/5.0 (Windows NT 6.1; rv:10.0) Gecko/20100101 Firefox/10.0")
-        
-def get_soup(srch):
-        
-        def make_soup(url):
-                go(url)
-                page = b.get_html()
-                return BeautifulSoup(page,"html.parser")
-        
-        query = urllib.urlencode(encoded_dict({"text":srch}))
-        url="https://yandex.ru/images/search?"+query
-
-        
-        soup = make_soup(url)
-        return soup
-
-def isBanned(soup):
+def download_image(url, filename):
+    try:
+        logger.info("Downloading [{}] to {}".format(url,filename))
+        urllib.urlretrieve(url, filename)
+        return True
+    except: 
+        logger.exception("Download image error")
+        return False
     
+def isBanned(soup):
     t = soup.find_all("title")[0].string
     
     if len(t) == 5 and t[-1]=="!":
-       print "Banned"
+       logger.warning("Banned at yandex")
        return True
 
-def get_random_image(soup):
+def get_images_urls(soup):
     a =  soup.find_all("a",{"class":"gallery__item carousel__item"})
     if len(a) == 0:
-        return None
-
-    h = random.choice(a);
-    h = h.get("href")
-    parsed = urlparse.urlparse(h)
-    image = urlparse.parse_qs(parsed.query)['img_url'][0]
+        return []
+    images_urls = []
+    for img in a:
+        h = img.get("href")
+        parsed = urlparse.urlparse(h)
+        image = urlparse.parse_qs(parsed.query)['img_url'][0]
+        images_urls.append(image)
     
-    return download_image(image, get_new_file_path())
+    return images_urls
 
-def get_all_images(soup):
-    a =  soup.find_all("a",{"class":"gallery__item carousel__item"})
-    if len(a) == 0:
-        return None
-
-    for i,h in enumerate(a):
-        try:
-            h = h.get("href")
-            parsed = urlparse.urlparse(h)
-            image = urlparse.parse_qs(parsed.query)['img_url'][0]
-        
-            download_image(image, "./timgs/{}.jpg".format(i)) 
-        except:
-            pass
-
-
+#temp_name = next(tempfile._get_candidate_names())
+captcha_text = [u"Такие дела, голуби. Ответьте капча_с_картинки.жпг. КАПЧА_С_КАРТИНКИ.ЖПГ блять, а не просто капча_с_картинки.",
+u"Чуваки, яндекс банит меня от зависти. Ответье словом с картинки. СЛОВО_С_КАРТИНКИ.жпг, вот так.", 
+u"Чот вы много говна ищите, вот вам капча. Разгадайте за меня. Отвечать нужно КАПЧА_С_КАРТИНКИ.жпг. Только так.",
+u"Ну вот, опять. Помогите что-ли, ответьте КАПЧА_С_КАРТИНКИ.жпг",
+u"Помогите понять яндексу, что это не я, а вы ищете такую хуйню. Ответьте СЛОВО_С_КАРТИНКИ.жпг"]
 class Processor:
 
     def __init__(self,  user):
         self.banned = False
         self.user = user
         self.chats_know_about_ban = []
+        self.prev_req = {}
 
     def getCaptchaImage(self, soup):
         i = soup.find("img", { "class" : "form__captcha" })
         url= i.get("src")
-        return download_image(url, get_new_file_path()) 
+    
+        self.last_key = soup.find("input",{"name":"key"})["value"]
+        self.last_retpath = soup.find("input",{"name":"retpath"})["value"]
+        fname = "./files/"+next(tempfile._get_candidate_names())+".jpg"
+        download_image(url, fname)
+        return fname
+   
     
     def postCaptcha(self,req):
-        rep = b.get_form_field(b.get_all_forms()[0],"0").value
-        key = b.get_form_field(b.get_all_forms()[0],"1").value
-        retpath = b.get_form_field(b.get_all_forms()[0],"2").value
+        #rep = b.get_form_field(b.get_all_forms()[0],"0").value
+        #key = b.get_form_field(b.get_all_forms()[0],"1").value
+        #retpath = b.get_form_field(b.get_all_forms()[0],"2").value
 
         url = "https://yandex.ru/checkcaptcha?"
+        getVars = {'key': self.last_key, "rep": req, "retpath":self.last_retpath }
+        logger.info("Posting yandex captha:", url + urllib.urlencode(encoded_dict(getVars)))
+        get_html(url + urllib.urlencode(encoded_dict(getVars)))
 
-        getVars = {'key': key, "rep": req, "retpath":retpath }
-        print "Posting captha:", url + urllib.urlencode(encoded_dict(getVars))
-        go(url + urllib.urlencode(encoded_dict(getVars)))
 
-
-    
     def process_message(self, message, chatid, userid):
+        global session
+        chatid = chatid or userid
         if u".jpg" in message["body"].lower() or u".жпг" in message["body"].lower():
             try:
                 req = message["body"][:message["body"].lower().index(u".jpg")]
@@ -143,63 +139,77 @@ class Processor:
                 req = message["body"][:message["body"].lower().index(u".жпг")]
 
             if self.banned:
-                print "-------POST CAPTHCA"
                 if chatid in self.chats_know_about_ban:
+                    
                     self.postCaptcha(req)
-                    req = self.prev_req
                     self.chats_know_about_ban = []
+                    req = self.prev_req[chatid]
                 else:
-                    print "--------- BANNDED AND DO NOT KNOW",chatid
                     msg_attachments = self.user.upload_images_files([self.last_capthca_img,])
-                    self.prev_req = req;
-                    self.user.send_message(text=u"Такие дела, голуби. Ответьте капча_с_картинки.жпг. КАПЧА_С_КАРТИНКИ.ЖПГ блять, а не просто капча_с_картинки.", attachments = msg_attachments, chatid = chatid, userid=userid)
+                    self.prev_req[chatid] = req;
+                    self.user.send_message(text=random.choice(captcha_text), attachments = msg_attachments, chatid = chatid, userid=userid)
                     self.chats_know_about_ban.append(chatid)
                     return
 
-            html = get_soup(req)    
+            html = make_soup(req)    
+            self.req = req
             if isBanned(html):
-                print "-------BANNDED"
                 self.banned = True
+                
                 self.last_capthca_img = self.getCaptchaImage(html)
+
                 msg_attachments = self.user.upload_images_files([self.last_capthca_img,])
-                self.prev_req = req;
-                self.user.send_message(text=u"Такие дела, голуби. Ответьте капча_с_картинки.жпг. КАПЧА_С_КАРТИНКИ.ЖПГ блять, а не просто капча_с_картинки.", attachments = msg_attachments, chatid = chatid, userid=userid)
+                self.prev_req[chatid] = req;
+                self.user.send_message(text=random.choice(captcha_text), attachments = msg_attachments, chatid = chatid, userid=userid)
                 self.chats_know_about_ban.append(chatid)
                 return
 
             else:                        
+                session = requests.Session()
+                session.headers.update(headers)
+ 
+                all_images = get_images_urls(html)
+                if all_images:
+                    random_url = random.choice(all_images)
 
-                img = get_random_image(html)
-                print "-------NOT BANNED"
+                    imgfilename = "./files/"+next(get_new_file_name())+".jpg"
+                    downloaded = download_image(random_url, imgfilename)
+
+                else:
+                    downloaded = False
+
                 self.banned = False;
                 self.chats_know_about_ban = []
-
-            if not img:
+            
+            if not downloaded:
                 self.user.send_message(text=u"Уупс, не нашлось ничего на \""+req+"\"", chatid = chatid, userid=userid)
                 return
-            print "Uploading imgs"
-            msg_attachments = self.user.upload_images_files([img,])
+            
+            msg_attachments = self.user.upload_images_files([imgfilename,])
            
             if not msg_attachments:
                 self.user.send_message(text=u"Странные же вы, такую хуйню ищите", chatid=chatid, userid=userid)
                 return
             self.user.send_message(text=u"["+req+"]", attachments = msg_attachments, chatid = chatid, userid=userid)
             
-            #wall_attachments = self.user.upload_images_files_wall([img,])
-            #if not wall_attachments:
-            #    print "Error in wall attachments"
-            #    return
-            #self.user.post(text=u"["+req+"]", attachments = wall_attachments, chatid = chatid, userid=userid)
-
-
-
+import multiprocessing
+pool = multiprocessing.Pool(1)
 
 if __name__ == "__main__":
-        import sys
-        html = get_soup(u"мем тюлень")
-        if isBanned(html):
-           print "banned"
-        else:
-            get_all_images(html)
+        class User():
+            def send_message(self, **kwargs):
+                print (kwargs["text"])
+                
 
+            def upload_images_files(self,*args):
+                return ["imageatt",]
+        reqs = open("../config/hangman/regular_dict.txt").readlines()
+        p = Processor(User())
+        def do(r):
+            message = {"body":"{}.jpg".format(r).decode("utf-8"),"chat_id":0}
+            p.process_message(message,0,0)
+        pool.map(do,reqs)
+            
+            
         
+

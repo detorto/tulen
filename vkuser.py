@@ -15,6 +15,7 @@ import vk
 import utils
 import vkrequest
 
+sys.path.append("./modules")
 logger = logging.getLogger('tulen')
 logger.setLevel(logging.DEBUG)
 
@@ -165,7 +166,6 @@ class VkUser(object):
     def poll_messages(self):
         if self.testmode:
             msg = raw_input("msg>> ")
-            msg = msg.decode('utf-8')
             messages = [
                 {"read_state": 0, "id": "0", "body": msg, "chat_id": 2}]
         else:
@@ -266,12 +266,6 @@ class VkUser(object):
 
         op = self.api.messages.send
 
-        # some utf magic
-        try:
-            text = text.decode("utf-8")
-        except:
-            pass
-
         # change some cirillic to latin
         # for not to triger another tulen
         text = text.replace(u"а", u"a")
@@ -283,7 +277,7 @@ class VkUser(object):
         args = {"chat_id": chatid, "message": text, "attachment": attachments,
                 "random_id": random.randint(0xfff, 0xffffff)}
 
-        if isinstance(userid, (int, long)):
+        if isinstance(userid, int):
             args.update({"user_id": userid})
         else:
             args.update({"domain": userid})
@@ -314,7 +308,7 @@ class VkUser(object):
                 "random_id": random.randint(0xfff, 0xffffff),
                 "sticker_id": random.randint(1, 168) if sticker_id == 0 else sticker_id}
 
-        if isinstance(user_id, (int, long)):
+        if isinstance(user_id, int):
             args.update({"user_id": user_id})
         else:
             args.update({"domain": user_id})

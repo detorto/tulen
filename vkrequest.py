@@ -100,6 +100,7 @@ def rl_dispatch():
 
 manager = multiprocessing.Manager()
 mmap = manager.dict({})
+
 def update_minfo(method, type, incr):
     with JSON_LOCK:
         json = utils.load_json("./files/minfo.json")
@@ -120,9 +121,6 @@ def perform_now(operation, args):
     ret = operation(**args)
     update_minfo(operation._method_name, "success", 1)
     return ret
-
-    
-
 
 def perform(operation, args):
     

@@ -8,7 +8,7 @@ import yaml
 import os
 from PIL import Image
 import requests
-from  StringIO import StringIO
+from io import StringIO
 import PIL.ImageOps  
 
 def get_random_start_and_end_points_in_file(file_data):
@@ -70,21 +70,21 @@ class Processor:
             negate_image(i).save("./files/neg.jpg")
             a = u"Негатнул"
         elif message_body == u"постерни":
-                poster_image(i).save("./files/neg.jpg")
-                a = u"Постернул"
+            poster_image(i).save("./files/neg.jpg")
+            a = u"Постернул"
         elif message_body == u"соларни":
-                solar_image(i).save("./files/neg.jpg")
-                a = u"Соларнул"
+            solar_image(i).save("./files/neg.jpg")
+            a = u"Соларнул"
         elif message_body == u"фильтрани":
-                random.choice(curve_filts())(i).save("./files/neg.jpg")
-                a = u"Фильранул"
+            random.choice(curve_filts())(i).save("./files/neg.jpg")
+            a = u"Фильранул"
         elif message_body == u"рандомни":
-                randomnize(i).save("./files/neg.jpg")
-                a = u"Рандомнул"
+            randomnize(i).save("./files/neg.jpg")
+            a = u"Рандомнул"
         elif message_body == u"гличани":
-                i.save("./files/neg.jpg")
-		glitch_an_image("./files/neg.jpg")
-                a = u"Гличанул"
+            i.save("./files/neg.jpg")
+            glitch_an_image("./files/neg.jpg")
+            a = u"Гличанул"
         else:
             return
 
@@ -94,12 +94,6 @@ class Processor:
             return
 
         self.user.send_message(text=a, attachments = msg_attachments, chatid = chatid, userid=userid)
-
-        wall_attachments = self.user.upload_images_files_wall(["./files/neg.jpg",])
-        if not wall_attachments:
-            print "Error in wall attachments"
-            return
-        self.user.post(a, attachments = wall_attachments, chatid = chatid, userid=userid)
 
 
 """
@@ -224,9 +218,9 @@ def randomnize(img):
 if __name__ == '__main__':
 
   if len(sys.argv) < 3:
-    print "Wrong number of arguments"
-    print """  Usage: \
-          python filter.py [curvefile] [imagefile] """
+    print ("Wrong number of arguments")
+    print ("""  Usage: \
+          python filter.py [curvefile] [imagefile] """)
   else:
 
 

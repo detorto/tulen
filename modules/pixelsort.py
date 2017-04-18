@@ -8,9 +8,10 @@ import yaml
 import os
 from PIL import Image
 import requests
-from  StringIO import StringIO
+from  io import StringIO
 import PIL.ImageOps  
-
+import logging
+logger = logging.getLogger("tulen.pixelsort")
    
 def glitch_an_image(local_image):
   files = {'image': open(local_image, 'rb')}
@@ -18,12 +19,13 @@ def glitch_an_image(local_image):
           'columns': 'on',
           'treshold':random.randint(30,100) }
 
-  r = requests.post("https://glitch-pixelsort.hyperdev.space/", files=files,data=data)
+  r = requests.post("https://pixelsort.glitch.me/", files=files,data=data)
   
   if r.status_code == 200:
     with open(local_image, 'wb') as f:
       for chunk in r:
             f.write(chunk)  
+  log.info("Glitched image")
 
 class Processor:
 
@@ -56,22 +58,16 @@ class Processor:
         self.user.send_message(text=a, attachments = msg_attachments, chatid = chatid, userid=userid)
 
         wall_attachments = self.user.upload_images_files_wall(["./files/neg.jpg",])
-        if not wall_attachments:
-            print "Error in wall attachments"
-            return
-        self.user.post(a, attachments = wall_attachments, chatid = chatid, userid=userid)
+        #if not wall_attachments:
+        #    print "Error in wall attachments"
+        #    return
+        #self.user.post(a, attachments = wall_attachments, chatid = chatid, userid=userid)
 
 
 
 if __name__ == '__main__':
   import sys
-  if len(sys.argv) < 2:
-    print "Wrong number of arguments"
-    print """  Usage: \
-          python filter.py [curvefile] [imagefile] """
-  else:
 
+  im = sys.argv[1]
 
-      im = sys.argv[1]
-
-      glitch_an_image(im)
+  glitch_an_image(im)
